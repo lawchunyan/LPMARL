@@ -5,60 +5,60 @@ import wandb
 
 from torch.optim import Adam
 from optim.lp_solver import solve_LP
-# from RL.nn.optimlayer import MatchingLayer
-from RL.nn.optimlayer_prev import MatchingLayer
-from RL.utils.replaymemory import ReplayMemory
+# from src.nn.optimlayer import MatchingLayer
+from src.nn.optimlayer import MatchingLayer
+from src.agents.baseagent import BaseAgent
 from utils.torch_util import dn
 
 
-class RLAgent(nn.Module):
-    def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=1000, epsilon=1.0):
-        super(RLAgent, self).__init__()
-        self.coeff_maker = nn.Sequential(nn.Linear(state_dim * 2, 1),
-                                         nn.LeakyReLU())
-        self.optim_layer = MatchingLayer(n_ag, n_en)
-        self.actor_l = nn.Sequential(nn.Linear(state_dim * 2, 32),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(32, action_dim + 1))
+class RLAgent(BaseAgent):
+    def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon=1.0,
+                 epsilon_decay=2 * 1e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4):
+        super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma)
+        # layers
+        self.critic_h = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
+                                      nn.LeakyReLU(),
+                                      nn.Linear(hidden_dim, 1),
+                                      nn.LeakyReLU())
+        self.actor_h = MatchingLayer(n_ag, n_en)
+        self.critic_l = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
+                                      nn.LeakyReLU(),
+                                      nn.Linear(hidden_dim, action_dim + 1))
 
+        # src parameters
         self.epsilon = epsilon
+        self.epsilon_decay = epsilon_decay
         self.std = 0.5
-        self.gamma = 0.99
-        self.batch_size = batch_size
-        self.train_start = batch_size * 10
 
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # optimizer
+        params = list(self.critic_h.parameters()) + list(
+            self.critic_l.parameters())  # + list(self.optim_layer.parameters()) \
+        self.optimizer = Adam(params, lr=lr)
+        self.loss_ftn = loss_ftn
 
-        params = list(self.coeff_maker.parameters()) + list(
-            self.actor_l.parameters())  # + list(self.optim_layer.parameters()) \
-
-        self.optimizer = Adam(params, lr=1e-4)
-
-        self.loss_ftn = torch.nn.MSELoss()
-
-        self.memory = ReplayMemory(memory_len)
-
+        # other
         self.n_ag = n_ag
         self.n_en = n_en
 
-    def get_action(self, obs, num_ag, num_en, avil_actions):
-        agent_obs = obs[:num_ag]
-        enemy_obs = obs[num_ag:]
-        high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, num_ag, num_en)
-        low_action = self.get_low_action(agent_obs, high_action, high_feat, avil_actions)
-        out_action = self.convert_low_action(low_action, high_action, avil_actions)
+    def get_action(self, obs, avail_actions):
+        agent_obs = obs[:self.n_ag]
+        enemy_obs = obs[self.n_ag:]
+        high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
+                                                                             self.n_en)
+        low_action = self.get_low_action(agent_obs, high_action, high_feat, avail_actions)
+        out_action = self.convert_low_action(low_action, high_action, avail_actions)
 
-        # anneal action
-        self.epsilon = max(0.05, self.epsilon - 2 * 1e-5)
+        # anneal epsilon
+        self.epsilon = max(0.05, self.epsilon - self.epsilon_decay)
 
-        return out_action, chosen_action_logit_h, high_action, low_action
+        return out_action, high_action, low_action
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
         agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
         enemy_side_input = np.tile(enemy_obs, (num_ag, 1))
 
         concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
-        coeff = self.coeff_maker(concat_input)
+        coeff = self.critic_h(concat_input)
         return coeff
 
     def get_high_action(self, agent_obs, enemy_obs, num_ag=8, num_en=8, explore=False, h_action=None):
@@ -68,7 +68,7 @@ class RLAgent(nn.Module):
         if explore:
             coeff = torch.normal(mean=coeff, std=self.std)
 
-        solution = self.optim_layer([coeff.squeeze()])
+        solution = self.actor_h([coeff.squeeze()])
 
         # self.optimizer.zero_grad()
         # solution.sum().backward()
@@ -90,7 +90,7 @@ class RLAgent(nn.Module):
 
     def get_low_qs(self, agent_obs, high_feat):
         action_inp = torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)
-        low_action_val = self.actor_l(action_inp)
+        low_action_val = self.critic_l(action_inp)
         return low_action_val
 
     def get_low_action(self, agent_obs, high_action, high_feat, avil_actions, explore=True):
@@ -153,7 +153,6 @@ class RLAgent(nn.Module):
         ns = []
         t = []
         avail_actions = []
-        logit_h = []
         for sample in samples:
             s.append(sample[0])
             a_h.append(sample[1])
@@ -162,7 +161,6 @@ class RLAgent(nn.Module):
             ns.append(sample[4])
             t.append(sample[5])
             avail_actions.append(sample[6])
-            logit_h.append(sample[7])
         loss_critic_h = []
         loss_actor_h = []
         loss_critic_l = []
@@ -215,12 +213,3 @@ class RLAgent(nn.Module):
                    })
 
         # gradient on high / low action
-
-    def can_fit(self):
-        return True if len(self.memory) > self.train_start else False
-
-    def push(self, *args):
-        self.memory.push(*args)
-
-    def save(self):
-        torch.save(self.state_dict(), 'happy.th')

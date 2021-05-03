@@ -1,7 +1,8 @@
 from collections import namedtuple
 import random
 
-Transition = namedtuple('Transition', ('state', 'high_action', 'action', 'reward', 'next_state', 'terminated', 'avail_action', 'logit_h'))
+Transition = namedtuple('Transition', ('state', 'high_action', 'action', 'reward', 'next_state', 'terminated', 'avail_action'))
+Transition_base = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'terminated', 'avail_action'))
 
 # Transition_g = namedtuple('Transition', ('graph', 'next_graph', 'reward'))
 
