@@ -1,0 +1,3 @@
+pytorch
+git+https://github.com/oxwhirl/smac.git
+cvxpy

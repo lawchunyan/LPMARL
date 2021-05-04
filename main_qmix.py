@@ -2,26 +2,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 import wandb
 
+from datetime import date
 from env_wrapper.sc2_env_wrapper import StarCraft2Env
 from src.agents.Qmixagent import QAgent
 
-use_wandb = False
-test = True
+use_wandb = True
+test = False
 env = StarCraft2Env(map_name="8m", window_size_x=400, window_size_y=300, enemy_obs=False)
 
 state_dim = env.get_obs_size()
 action_dim = env.n_actions - 1
 
-num_episodes = 5000  # goal: 2 million timesteps; 15000 episodes approx.
+num_episodes = 10000  # goal: 2 million timesteps; 15000 episodes approx.
 if test:
     n_agents = 10
 else:
     n_agents = env.n_agents
     if use_wandb:
-        wandb.init(project='optmarl', name='constraint6')
+        wandb.init(project='optmarl', name=date.today().isoformat() + '-Qmix_mac')
 batch_size = 20
 
-agent = QAgent(state_dim, action_dim, n_agents, batch_size=batch_size)
+agent = QAgent(state_dim, action_dim, n_agents, batch_size=batch_size, state_shape=env.get_state_size())
 
 rewards = []
 
@@ -40,13 +41,13 @@ for e in range(num_episodes):
             state = env.get_obs()
             avail_actions = env.get_avail_actions()
 
-        action = agent.get_action(state, avail_actions)
+        env_action, action = agent.get_action(state, avail_actions)
 
         if test:
             reward, terminated = 1, 0
             next_state = np.random.random((n_agents, state_dim))
         else:
-            reward, terminated, _ = env.step(action)
+            reward, terminated, _ = env.step(env_action)
             next_state = env.get_obs()
 
         agent.push(state, action, reward, next_state, terminated, avail_actions)
