@@ -10,17 +10,18 @@ from src.nn.qmixer import Qmixer
 from src.nn.mlp import MultiLayeredPerceptron as MLP
 from utils.torch_util import dn
 
-Transition_base = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'terminated', 'avail_action'))
+Transition_base = namedtuple('Transition', (
+    'state', 'action', 'reward', 'next_state', 'terminated', 'avail_action', 'global_state_prev', 'global_state_next'))
 
 
 class QAgent(BaseAgent):
-    def __init__(self, state_dim, action_dim, n_ag, memory_len=10000, batch_size=20, train_start=100, epsilon=1.0,
+    def __init__(self, state_dim, action_dim, n_ag, memory_len=10000, batch_size=20, train_start=100, epsilon_start=1.0,
                  epsilon_decay=2 * 1e-5, gamma=0.99, hidden_dim=32, mixer=False, loss_ftn=nn.MSELoss(), lr=1e-4,
-                 state_shape=(0, 0)):
-        super(QAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma)
+                 state_shape=(0, 0), memory_type='ep'):
+        super(QAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma, memory_type=memory_type)
 
         self.critic = MLP(state_dim, action_dim, out_actiation=nn.Identity())
-        self.epsilon = epsilon
+        self.epsilon = epsilon_start
         self.epsilon_decay = epsilon_decay
 
         self.memory.transition = Transition_base
@@ -35,7 +36,7 @@ class QAgent(BaseAgent):
             self.mixer = Qmixer(n_ag, state_shape)
             params += list(self.mixer.parameters())
 
-        self.optimizer = Adam(params, lr=5e-4)
+        self.optimizer = Adam(params, lr=lr)
 
     def get_qs(self, state):
         state_tensor = torch.Tensor(state).to(self.device)
@@ -75,9 +76,6 @@ class QAgent(BaseAgent):
         env_action[dead_ag_loc] = 0
         return env_action
 
-
-
-
     def fit(self):
         samples = self.memory.sample(self.batch_size)
 
@@ -87,8 +85,10 @@ class QAgent(BaseAgent):
         ns = []
         t = []
         avail_actions = []
+        gs = []
+        gs_n = []
 
-        lst = [s, a, r, ns, t, avail_actions]
+        lst = [s, a, r, ns, t, avail_actions, gs, gs_n]
 
         for sample in samples:
             for sam, llst in zip(sample, lst):
@@ -99,16 +99,19 @@ class QAgent(BaseAgent):
         r_tensor = torch.Tensor(r).to(self.device)
         ns_tensor = torch.Tensor(ns).to(self.device)
         t_tensor = torch.Tensor(t).to(self.device)
+        gs_tensor = torch.Tensor(gs).to(self.device)
+        gs_n_tensor = torch.Tensor(gs_n).to(self.device)
 
         curr_qs = self.get_qs(s_tensor.reshape(-1, self.state_dim)).gather(dim=1,
-                                               index=a_tensor).reshape(self.batch_size, -1, 1)
+                                                                           index=a_tensor).reshape(self.batch_size, -1,
+                                                                                                   1)
 
         with torch.no_grad():
             next_qs = self.get_qs(ns_tensor.reshape(-1, self.state_dim)).max(dim=1)[0].reshape(self.batch_size, -1, 1)
 
         if self.mixer is not None:
-            curr_qs = self.mixer(curr_qs, state=s_tensor)
-            next_qs = self.mixer(next_qs, state=ns_tensor)
+            curr_qs = self.mixer(curr_qs, states=gs_tensor)
+            next_qs = self.mixer(next_qs, states=gs_n_tensor)
 
         q_target = r_tensor + self.gamma * next_qs.detach() * (1 - t_tensor)
 
@@ -117,5 +120,4 @@ class QAgent(BaseAgent):
         self.optimizer.zero_grad()
         loss_q.backward()
 
-        wandb.log({'loss_critic':loss_q.item()})
-
+        wandb.log({'loss_critic': loss_q.item()})

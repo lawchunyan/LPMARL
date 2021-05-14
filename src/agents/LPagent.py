@@ -12,9 +12,10 @@ from utils.torch_util import dn
 
 
 class RLAgent(BaseAgent):
-    def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon=1.0,
-                 epsilon_decay=2 * 1e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4):
-        super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma)
+    def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
+                 epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
+                 memory_type="ep"):
+        super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma, memory_type=memory_type)
         # layers
         self.critic_h = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
                                       nn.LeakyReLU(),
@@ -26,7 +27,7 @@ class RLAgent(BaseAgent):
                                       nn.Linear(hidden_dim, action_dim + 1))
 
         # src parameters
-        self.epsilon = epsilon
+        self.epsilon = epsilon_start
         self.epsilon_decay = epsilon_decay
         self.std = 0.5
 
@@ -78,10 +79,12 @@ class RLAgent(BaseAgent):
         # chosen_h_action = solution.reshape(num_ag, num_en).max(dim=1)[1]
 
         # Sample from policy
-        policy = solution.reshape(num_ag, num_en) + 1e-7  # to prevent - 0
+        policy = solution.reshape(num_ag, num_en)  # to prevent - 0
         if h_action is not None:
             chosen_h_action = h_action
         else:
+            policy += 1e-4
+            policy = policy / policy.sum(1, keepdims=True)
             chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
         chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
         chosen_h_en_feat = enemy_obs[chosen_h_action]

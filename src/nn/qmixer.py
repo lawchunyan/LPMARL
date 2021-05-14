@@ -19,6 +19,10 @@ class Qmixer(nn.Module):
         self.hyper_w_final = nn.Sequential(nn.Linear(self.state_dim, self.hypernet_dim),
                                            nn.ReLU(),
                                            nn.Linear(self.hypernet_dim, self.embed_dim))
+        self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_dim)
+        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_dim),
+                               nn.ReLU(),
+                               nn.Linear(self.embed_dim, 1))
 
     def forward(self, qs, states):
         """
