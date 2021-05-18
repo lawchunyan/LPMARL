@@ -36,8 +36,8 @@ class BaseAgent(nn.Module):
     def push(self, *args):
         self.memory.push(*args)
 
-    def save(self, e):
-        torch.save(self.state_dict(), 'result/{}/{}.th'.format(date.today().strftime("%Y%m%d") + "_" + self.name, e))
+    def save(self, dirname, e):
+        torch.save(self.state_dict(), dirname + "/{}.th".format(e))
 
     @staticmethod
     def update_target_network(target_params, source_params, tau=1.0):

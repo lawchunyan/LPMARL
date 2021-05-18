@@ -35,21 +35,27 @@ agent_config = {'state_dim': state_dim,
                 'name': 'Qmix'
                 }
 
-if test:
-    n_agents = 10
-else:
-    n_agents = env.n_agents
-    if use_wandb:
-        wandb.init(project='optmarl', name=date.today().strftime("%Y%m%d") + '-Qmix_' + map_name, config=agent_config)
-
 agent = QAgent(**agent_config)
-exp_name = exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name
+exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name
 
-dirName = 'results/{}'.format(exp_name)
-if not os.path.exists(dirName):
+dirName = 'result/{}'.format(exp_name)
+if os.path.exists(dirName):
+    i = 0
+    while True:
+        i += 1
+        curr_dir = dirName + "_{}".format(i)
+        if not os.path.exists(curr_dir):
+            os.makedirs(curr_dir)
+            break
+
+else:
+    curr_dir = dirName
     os.makedirs(dirName)
 
-rewards = []
+exp_conf = {'directory': curr_dir}
+
+if use_wandb:
+    wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
 
 t_env = 0
 
@@ -87,10 +93,9 @@ for e in range(100000):
         agent.update_target()
 
     if e % 2000 == 0:
-        agent.save(e)
+        agent.save(curr_dir, e)
 
     print("EP:{}, R:{}".format(e, episode_reward))
-    rewards.append(episode_reward)
     if use_wandb:
         wandb.log({'reward': episode_reward,
                    'epsilon': agent.epsilon,

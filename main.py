@@ -37,23 +37,35 @@ agent_config = {"state_dim": state_dim,
 agent = RLAgent(**agent_config)
 exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name
 
-if use_wandb:
-    wandb.init(project='optmarl', name=exp_name, config=agent_config)
+dirName = 'result/{}'.format(exp_name)
+if os.path.exists(dirName):
+    i = 0
+    while True:
+        i += 1
+        curr_dir = dirName + "_{}".format(i)
+        if not os.path.exists(curr_dir):
+            os.makedirs(curr_dir)
+            break
 
-dirName = 'results/{}'.format(exp_name)
-if not os.path.exists(dirName):
+else:
+    curr_dir = dirName
     os.makedirs(dirName)
+
+exp_conf = {'directory': curr_dir}
+
+if use_wandb:
+    wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
 
 for e in range(num_episodes):
     env.reset()
 
     terminated = False
     episode_reward = 0
-    t_env = 0
+    ep_len = 0
     prev_killed_enemies = env.death_tracker_enemy.sum()
 
     while not terminated:
-        t_env += 1
+        ep_len += 1
         state = env.get_obs()
         avail_actions = env.get_avail_actions()
 
@@ -69,8 +81,8 @@ for e in range(num_episodes):
         episode_reward += reward
         prev_killed_enemies = next_killed_enemies
 
-    if e % 2000 == 0 or episode_reward > 19.9:
-        agent.save(e)
+    if e % 1 == 0 or episode_reward > 19.9:
+        agent.save(curr_dir, e)
 
     if agent.can_fit():
         agent.fit()
@@ -84,6 +96,6 @@ for e in range(num_episodes):
                    'epsilon': agent.epsilon,
                    'killed_enemy': env.death_tracker_enemy.sum(),
                    'EP': e,
-                   'timestep': t_env})
+                   'timestep': ep_len})
 
 env.close()
