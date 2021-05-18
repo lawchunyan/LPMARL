@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn
-
 import wandb
+import os
 
 from datetime import date
 from env_wrapper.sc2_env_wrapper import StarCraft2Env
@@ -30,23 +30,22 @@ agent_config = {"state_dim": state_dim,
                 "loss_ftn": torch.nn.MSELoss(),
                 "lr": 5e-4,
                 'memory_type': 'ep',
-                'target_tau':0.5
+                'target_tau': 0.5,
+                'name': 'LP'
                 }
 
-if not TRAIN:
-    n_agents = 10
-    n_enemies = 10
-else:
-    n_agents = env.n_agents
-    n_enemies = env.n_enemies
-    if use_wandb:
-        wandb.init(project='optmarl', name=date.today().strftime("%Y%m%d") + 'LPMARL', config=agent_config)
-
 agent = RLAgent(**agent_config)
+exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name
+
+if use_wandb:
+    wandb.init(project='optmarl', name=exp_name, config=agent_config)
+
+dirName = 'results/{}'.format(exp_name)
+if not os.path.exists(dirName):
+    os.makedirs(dirName)
 
 for e in range(num_episodes):
-    if TRAIN:
-        env.reset()
+    env.reset()
 
     terminated = False
     episode_reward = 0
@@ -78,8 +77,6 @@ for e in range(num_episodes):
 
     if e % 200 == 0:
         agent.update_target()
-
-
 
     print("EP:{}, R:{}".format(e, episode_reward))
     if use_wandb:

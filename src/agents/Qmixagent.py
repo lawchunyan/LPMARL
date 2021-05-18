@@ -17,9 +17,9 @@ Transition_base = namedtuple('Transition', (
 class QAgent(BaseAgent):
     def __init__(self, state_dim, action_dim, n_ag, memory_len=10000, batch_size=20, train_start=100, epsilon_start=1.0,
                  epsilon_decay=2 * 1e-5, gamma=0.99, hidden_dim=32, mixer=False, loss_ftn=nn.MSELoss(), lr=1e-4,
-                 state_shape=(0, 0), memory_type='ep'):
+                 state_shape=(0, 0), memory_type='ep', name='Qmix'):
         super(QAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
-                                     memory_type=memory_type)
+                                     memory_type=memory_type, name=name)
 
         self.critic = MLP(state_dim, action_dim, hidden_dims=[], out_actiation=nn.Identity())
         self.target_critic = MLP(state_dim, action_dim, hidden_dims=[], out_actiation=nn.Identity())

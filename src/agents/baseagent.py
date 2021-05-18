@@ -5,7 +5,8 @@ from datetime import date
 
 
 class BaseAgent(nn.Module):
-    def __init__(self, state_dim, action_dim, memory_len, batch_size, train_start, gamma=0.99, memory_type="sample"):
+    def __init__(self, state_dim, action_dim, memory_len, batch_size, train_start, gamma=0.99, memory_type="sample",
+                 name=None):
         super(BaseAgent, self).__init__()
 
         if memory_type == 'sample':
@@ -15,12 +16,15 @@ class BaseAgent(nn.Module):
         else:
             raise NotImplementedError("other than 'sample' or 'ep' memory not implemented")
 
+        assert name is not None
+
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.batch_size = batch_size
         self.train_start = train_start
         self.gamma = gamma
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.name = name
 
     def get_action(self, *args):
         raise NotImplementedError
@@ -32,7 +36,7 @@ class BaseAgent(nn.Module):
         self.memory.push(*args)
 
     def save(self, e):
-        torch.save(self.state_dict(), 'result/{}_{}.th'.format(date.today().strftime("%Y%m%d"), e))
+        torch.save(self.state_dict(), 'result/{}/{}.th'.format(date.today().strftime("%Y%m%d") + "_" + self.name, e))
 
     @staticmethod
     def update_target_network(target_params, source_params, tau=1.0):
