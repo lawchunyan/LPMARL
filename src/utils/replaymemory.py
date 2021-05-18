@@ -37,8 +37,10 @@ class ReplayMemory_episode(object):
         self.position = 0
         self.max_ep_len = max_ep_len
         self.transition = Transition
+        # self.avail_action_transition = namedtuple('T', self.transition._fields + ('next_avail_action',))
 
         self.ep_transitions = []
+        # self.avail_actions = []
 
     def __len__(self):
         return len(self.memory)
@@ -49,13 +51,21 @@ class ReplayMemory_episode(object):
 
         curr_sample = self.transition(*args)
         self.ep_transitions.append(curr_sample)
+        # self.avail_actions.append(curr_sample.avail_action)
 
         if curr_sample.terminated:
+            # self.avail_actions.append(curr_sample.avail_action)
             self.push_episodes()
 
     def push_episodes(self):
         if len(self.memory) < self.capacity:
             self.memory.append(None)
+
+        # real_transitions = []
+        # for i, transition in enumerate(self.ep_transitions):
+        #     real_transitions.append(self.avail_action_transition(**transition + self.avail_actions[i+1]))
+        #
+        # self.memory[self.position] = real_transitions
         self.memory[self.position] = self.ep_transitions
 
         self.position = (self.position + 1) % self.capacity

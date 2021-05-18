@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from src.utils.replaymemory import ReplayMemory, ReplayMemory_episode
+from datetime import date
 
 
 class BaseAgent(nn.Module):
@@ -30,13 +31,13 @@ class BaseAgent(nn.Module):
     def push(self, *args):
         self.memory.push(*args)
 
-    def save(self):
-        torch.save(self.state_dict(), '/happy.th')
+    def save(self, e):
+        torch.save(self.state_dict(), 'result/{}_{}.th'.format(date.today().strftime("%Y%m%d"), e))
 
     @staticmethod
     def update_target_network(target_params, source_params, tau=1.0):
         for t, s in zip(target_params, source_params):
-            t.data.copy(tau * s.data + (1.0 - tau) * t.data)
+            t.data.copy_(tau * s.data + (1.0 - tau) * t.data)
 
 
 if __name__ == '__main__':

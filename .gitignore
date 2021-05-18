@@ -4,3 +4,4 @@ wandb/
 
 *.ipynb
 __pycache__/
+result/

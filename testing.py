@@ -9,7 +9,7 @@ state_dim = env.get_obs_size()
 n_agents = env.n_agents
 n_enemies = env.n_enemies
 
-agent = RLAgent(state_dim, n_agents, n_enemies, batch_size=1, epsilon=0.0)
+agent = RLAgent(state_dim, n_agents, n_enemies, batch_size=1, epsilon_start=0.0)
 agent.load_state_dict(torch.load('happy.th'))
 
 
