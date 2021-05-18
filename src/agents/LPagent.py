@@ -71,7 +71,7 @@ class RLAgent(BaseAgent):
         out_action = self.convert_low_action(low_action, high_action, avail_actions)
 
         # anneal epsilon
-        self.epsilon = max(0.05, self.epsilon - self.epsilon_decay)
+        self.epsilon = max(self.epsilon_min, self.epsilon - self.epsilon_decay)
 
         return out_action, high_action, low_action
 

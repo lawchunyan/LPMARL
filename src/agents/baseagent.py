@@ -25,6 +25,7 @@ class BaseAgent(nn.Module):
         self.gamma = gamma
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.name = name
+        self.epsilon_min = 0.05
 
     def get_action(self, *args):
         raise NotImplementedError
