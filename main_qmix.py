@@ -32,7 +32,9 @@ agent_config = {'state_dim': state_dim,
                 'lr': 1e-4,
                 'state_shape': env.get_state_size(),
                 'memory_type': 'ep',
-                'name': 'Qmix'
+                'name': 'Qmix',
+                'target_update_interval': 200,
+                'target_tau': 0.5
                 }
 
 agent = QAgent(**agent_config)
@@ -87,10 +89,7 @@ for e in range(100000):
         episode_reward += reward
 
     if agent.can_fit():
-        agent.fit()
-
-    if e % 200 == 0:
-        agent.update_target()
+        agent.fit(e)
 
     if e % 2000 == 0:
         agent.save(curr_dir, e)

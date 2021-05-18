@@ -17,7 +17,7 @@ Transition_base = namedtuple('Transition', (
 class QAgent(BaseAgent):
     def __init__(self, state_dim, action_dim, n_ag, memory_len=10000, batch_size=20, train_start=100, epsilon_start=1.0,
                  epsilon_decay=2 * 1e-5, gamma=0.99, hidden_dim=32, mixer=False, loss_ftn=nn.MSELoss(), lr=1e-4,
-                 state_shape=(0, 0), memory_type='ep', name='Qmix'):
+                 state_shape=(0, 0), memory_type='ep', name='Qmix', target_update_interval=200, target_tau=0.5):
         super(QAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                      memory_type=memory_type, name=name)
 
@@ -43,6 +43,9 @@ class QAgent(BaseAgent):
             self.update_target_network(self.target_mixer.parameters(), self.mixer.parameters())
 
         self.optimizer = Adam(self.params, lr=lr)
+
+        self.target_update_interval = target_update_interval
+        self.tau = target_tau
 
     def get_qs(self, state):
         state_tensor = torch.Tensor(state).to(self.device)
@@ -90,7 +93,7 @@ class QAgent(BaseAgent):
         env_action[dead_ag_loc] = 0
         return env_action
 
-    def fit(self):
+    def fit(self, e):
         samples = self.memory.sample(self.batch_size)
         num_samples = len(samples)
 
@@ -147,6 +150,9 @@ class QAgent(BaseAgent):
         wandb.log({'loss_critic': loss_q.item(),
                    })
 
+        if e % self.target_update_interval == 0:
+            self.update_target()
+
     def update_target(self):
-        self.update_target_network(self.target_critic.parameters(), self.critic.parameters())
-        self.update_target_network(self.target_mixer.parameters(), self.mixer.parameters())
+        self.update_target_network(self.target_critic.parameters(), self.critic.parameters(), self.tau)
+        self.update_target_network(self.target_mixer.parameters(), self.mixer.parameters(), self.tau)

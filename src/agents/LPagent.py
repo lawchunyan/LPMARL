@@ -17,7 +17,7 @@ Transition_LP = namedtuple('Transition_LP',
 class RLAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
-                 memory_type="ep", target_tau=1.0, name='LP'):
+                 memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200):
         super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                       memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
@@ -61,6 +61,7 @@ class RLAgent(BaseAgent):
 
         self.high_weight = 0.1
         self.target_tau = target_tau
+        self.target_update_interval = target_update_interval
 
     def get_action(self, obs, avail_actions):
         agent_obs = obs[:self.n_ag]
@@ -172,7 +173,7 @@ class RLAgent(BaseAgent):
 
         return out_action
 
-    def fit(self):
+    def fit(self, e):
 
         samples = self.memory.sample(self.batch_size)
         s = []
@@ -266,6 +267,8 @@ class RLAgent(BaseAgent):
         self.high_weight = min(0.5, self.high_weight + 4e-4)
 
         # gradient on high / low action
+        if e % self.target_update_interval == 0:
+            self.update_target()
 
     def update_target(self):
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters(), tau=self.target_tau)

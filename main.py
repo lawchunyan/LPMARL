@@ -31,7 +31,8 @@ agent_config = {"state_dim": state_dim,
                 "lr": 5e-4,
                 'memory_type': 'ep',
                 'target_tau': 0.5,
-                'name': 'LP'
+                'name': 'LP',
+                'target_update_interval': 200
                 }
 
 agent = RLAgent(**agent_config)
@@ -81,14 +82,11 @@ for e in range(num_episodes):
         episode_reward += reward
         prev_killed_enemies = next_killed_enemies
 
-    if e % 1 == 0 or episode_reward > 19.9:
+    if e % 2000 == 0 or episode_reward > 19.9:
         agent.save(curr_dir, e)
 
     if agent.can_fit():
-        agent.fit()
-
-    if e % 200 == 0:
-        agent.update_target()
+        agent.fit(e)
 
     print("EP:{}, R:{}".format(e, episode_reward))
     if use_wandb:
