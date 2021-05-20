@@ -17,7 +17,7 @@ Transition_LP = namedtuple('Transition_LP',
 class RLAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
-                 memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200):
+                 memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, low_action=True):
         super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                       memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
@@ -35,10 +35,12 @@ class RLAgent(BaseAgent):
         self.actor_h = MatchingLayer(n_ag, n_en)
         self.critic_l = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
                                       nn.LeakyReLU(),
-                                      nn.Linear(hidden_dim, action_dim + 1))
+                                      nn.Linear(hidden_dim, action_dim + 1),
+                                      nn.LeakyReLU())
         self.critic_l_target = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
                                              nn.LeakyReLU(),
-                                             nn.Linear(hidden_dim, action_dim + 1))
+                                             nn.Linear(hidden_dim, action_dim + 1),
+                                             nn.LeakyReLU())
 
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters())
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
@@ -62,19 +64,24 @@ class RLAgent(BaseAgent):
         self.high_weight = 0.1
         self.target_tau = target_tau
         self.target_update_interval = target_update_interval
+        self.low_action=low_action
 
-    def get_action(self, obs, avail_actions):
+    def get_action(self, obs, avail_actions, explore=True):
         agent_obs = obs[:self.n_ag]
         enemy_obs = obs[self.n_ag:]
         high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-                                                                             self.n_en)
-        low_action = self.get_low_action(agent_obs, high_action, high_feat, avail_actions)
-        out_action = self.convert_low_action(low_action, high_action, avail_actions)
+                                                                             self.n_en, explore=False)
+        if self.low_action:
+            low_action = self.get_low_action(agent_obs, high_action, high_feat, avail_actions, explore=explore)
+            out_action = self.convert_low_action(low_action, high_action, avail_actions)
 
-        # anneal epsilon
-        self.epsilon = max(self.epsilon_min, self.epsilon - self.epsilon_decay)
+            # anneal epsilon
+            self.epsilon = max(self.epsilon_min, self.epsilon - self.epsilon_decay)
 
-        return out_action, high_action, low_action
+            return out_action, high_action, low_action
+
+        else:
+            return out_action
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
         agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
@@ -82,6 +89,13 @@ class RLAgent(BaseAgent):
 
         concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
         coeff = self.critic_h(concat_input)
+
+        dead_enemy = enemy_obs[:, -1] == 0
+
+        reshaped_coeff = coeff.reshape(num_ag, num_en)
+        reshaped_coeff[:, dead_enemy] = 0
+        coeff = reshaped_coeff.reshape(-1, 1)
+
         return coeff
 
     def get_high_qs_target(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
@@ -100,13 +114,6 @@ class RLAgent(BaseAgent):
             coeff = torch.normal(mean=coeff, std=self.std)
 
         solution = self.actor_h([coeff.squeeze()])
-
-        # self.optimizer.zero_grad()
-        # solution.sum().backward()
-        # self.optimizer.step()
-
-        # selecting max value
-        # chosen_h_action = solution.reshape(num_ag, num_en).max(dim=1)[1]
 
         # Sample from policy
         policy = solution.reshape(num_ag, num_en)  # to prevent - 0

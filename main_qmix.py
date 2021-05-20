@@ -3,7 +3,7 @@ import torch
 import os
 
 from datetime import date
-from env_wrapper.sc2_env_wrapper import StarCraft2Env
+from envs.sc2_env_wrapper import StarCraft2Env
 from src.agents.Qmixagent import QAgent
 
 use_wandb = True
@@ -91,7 +91,7 @@ for e in range(100000):
     if agent.can_fit():
         agent.fit(e)
 
-    if e % 2000 == 0:
+    if e % 2000 == 0 or (episode_reward > 19.9 and e % 100 == 0):
         agent.save(curr_dir, e)
 
     print("EP:{}, R:{}".format(e, episode_reward))

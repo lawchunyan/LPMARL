@@ -3,13 +3,13 @@ import wandb
 import os
 
 from datetime import date
-from envs.sc2_env_wrapper import StarCraft2Env
-from src.agents.Hier_LPagent import RLAgent
+from envs.combinatorial_env import CombinatorialEnv
+from src.agents.CombAgent import RLAgent
 
 TRAIN = True
-use_wandb = True
+use_wandb = False
 
-env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300, enemy_obs=True)
+env = CombinatorialEnv(10, 10, enemy_obs=True)
 
 state_dim = env.get_obs_size()
 num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
@@ -34,7 +34,7 @@ agent_config = {"state_dim": state_dim,
                 }
 
 agent = RLAgent(**agent_config)
-exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name + "LeakyRELU"
+exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name + "COenv"
 
 dirName = 'result/{}'.format(exp_name)
 if os.path.exists(dirName):
@@ -61,24 +61,19 @@ for e in range(num_episodes):
     terminated = False
     episode_reward = 0
     ep_len = 0
-    prev_killed_enemies = env.death_tracker_enemy.sum()
 
     while not terminated:
         ep_len += 1
         state = env.get_obs()
-        avail_actions = env.get_avail_actions()
 
-        action, high_action, low_action = agent.get_action(state, avail_actions)
+        action, = agent.get_action(state)
 
         reward, terminated, _ = env.step(action)
 
-        next_killed_enemies = env.death_tracker_enemy.sum()
         next_state = env.get_obs()
-        high_r = (next_killed_enemies - prev_killed_enemies) * 5
 
-        agent.push(state, high_action, low_action, reward, next_state, terminated, avail_actions, high_r)
+        agent.push(state, action, reward, next_state)
         episode_reward += reward
-        prev_killed_enemies = next_killed_enemies
 
     if e % 2000 == 0 or (episode_reward > 19.9 and e % 100 == 0):
         agent.save(curr_dir, e)
@@ -90,7 +85,6 @@ for e in range(num_episodes):
     if use_wandb:
         wandb.log({'reward': episode_reward,
                    'epsilon': agent.epsilon,
-                   'killed_enemy': env.death_tracker_enemy.sum(),
                    'EP': e,
                    'timestep': ep_len})
 

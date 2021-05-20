@@ -5,8 +5,8 @@ import torch.nn
 import wandb
 
 from datetime import date
-from env_wrapper.sc2_env_wrapper import StarCraft2Env
-from src.agents.LPagent import RLAgent
+from envs.sc2_env_wrapper import StarCraft2Env
+from src.agents.Hier_LPagent import RLAgent
 
 TRAIN = True
 
