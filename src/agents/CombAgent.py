@@ -31,7 +31,7 @@ class RLAgent(BaseAgent):
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              nn.LeakyReLU())
-        self.actor_h = MatchingLayer(n_ag, n_en)
+        self.actor_h = MatchingLayer(n_ag)
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
 
@@ -59,9 +59,8 @@ class RLAgent(BaseAgent):
     def get_action(self, obs, explore=True):
         agent_obs = obs[:self.n_ag]
         enemy_obs = obs[self.n_ag:]
-        high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-                                                                             self.n_en, explore=False)
-        return high_action
+        high_action = self.get_high_action(agent_obs, enemy_obs, self.n_ag, self.n_en, explore=False)
+        return dn(high_action)
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
         agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
@@ -70,11 +69,11 @@ class RLAgent(BaseAgent):
         concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
         coeff = self.critic_h(concat_input)
 
-        dead_enemy = enemy_obs[:, -1] == 0
+        # dead_enemy = enemy_obs[:, -1] == 0
 
-        reshaped_coeff = coeff.reshape(num_ag, num_en)
-        reshaped_coeff[:, dead_enemy] = 0
-        coeff = reshaped_coeff.reshape(-1, 1)
+        # reshaped_coeff = coeff.reshape(num_ag, num_en)
+        # reshaped_coeff[:, dead_enemy] = 0
+        # coeff = reshaped_coeff.reshape(-1, 1)
 
         return coeff
 
@@ -111,92 +110,37 @@ class RLAgent(BaseAgent):
 
         samples = self.memory.sample(self.batch_size)
         s = []
-        a_h = []
-        a_l = []
+        a = []
         r = []
-        ns = []
-        t = []
-        avail_actions = []
-        high_r = []
 
-        lst = [s, a_h, a_l, r, ns, t, avail_actions, high_r]
+        lst = [s, a, r]
 
         for sample in samples:
             for sam, llst in zip(sample, lst):
                 llst.append(sam)
 
-        next_avail_actions = np.stack(avail_actions[1:] + [avail_actions[0]])
-
         loss_critic_h = []
-        loss_actor_h = []
-        loss_critic_l = []
-        loss_actor_l = []
 
         for sample_idx in range(self.batch_size):
             agent_obs, enemy_obs = s[sample_idx][:self.n_ag], s[sample_idx][self.n_ag:]
-            high_action_taken = a_h[sample_idx]
-            low_action = a_l[sample_idx]
-            next_avail_action = next_avail_actions[sample_idx]
-            r_l = r[sample_idx]
-            r_h = high_r[sample_idx]
-
-            _, high_en_feat, h_logit = self.get_high_action(agent_obs, enemy_obs, explore=False,
-                                                            h_action=high_action_taken,
-                                                            num_ag=self.n_ag, num_en=self.n_en)
+            high_action_taken = a[sample_idx]
+            r_h = r[sample_idx]
 
             coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag=self.n_ag, num_en=self.n_en)
             high_qs = coeff.reshape(self.n_ag, self.n_en).gather(dim=1, index=high_action_taken.reshape(-1, 1))
 
-            n_agent_obs, n_enemy_obs = ns[sample_idx][:self.n_ag], ns[sample_idx][self.n_ag:]
-            next_high_q_val, next_high_action = self.get_high_qs(n_agent_obs, n_enemy_obs, self.n_ag,
-                                                                 self.n_en). \
-                reshape(self.n_ag, self.n_en).max(dim=1)
+            high_q_target = r_h
 
-            high_q_target = r_h + self.gamma * next_high_q_val.detach() * (1 - t[sample_idx])
-
-            # low q update
-            low_qs = self.get_low_qs(agent_obs, high_en_feat).gather(dim=1,
-                                                                     index=torch.tensor(low_action,
-                                                                                        dtype=int).reshape(-1,
-                                                                                                           1))
-
-            with torch.no_grad():
-                next_low_q_val = self.get_low_qs_target(n_agent_obs, n_enemy_obs[next_high_action])
-                next_move_mask = next_avail_action[:, 1:1 + 5]  # shape (n_agent x n_action)
-                next_attack_mask = next_avail_action[:, 1 + 5:]
-
-                next_action_mask_attack = np.take_along_axis(next_attack_mask,
-                                                             high_action_taken.detach().numpy().reshape(-1, 1),
-                                                             -1)
-                next_action_mask = np.concatenate([next_move_mask, next_action_mask_attack], axis=-1)
-                next_low_q_val[torch.tensor(next_action_mask == 0)] = -9999
-                selected_low_q_target = next_low_q_val.max(dim=1)[0]
-
-            low_q_target = r_l + self.gamma * selected_low_q_target * (1 - t[sample_idx])
-
-            dead_mask = next_avail_action[:, 0]
-            low_qs[dead_mask == 1] = 0
-            low_q_target[dead_mask == 1] = 0
-
-            loss_critic_h.append(self.loss_ftn(high_qs, high_q_target))
-            loss_critic_l.append(self.loss_ftn(low_qs, low_q_target))
-
-            loss_actor_h.append(-h_logit * low_qs)
+            loss_critic_h.append(((high_qs - high_q_target) ** 2).mean())
 
             # low_action = self.get_low_action(agent_obs, high_action, high_en_feat, avail_action)
         loss_c_h = torch.stack(loss_critic_h).mean()
-        loss_c_l = torch.stack(loss_critic_l).mean()
-        loss_a_h = torch.stack(loss_actor_h).mean()
 
         self.optimizer.zero_grad()
-        (loss_c_h * self.high_weight + loss_c_l + loss_a_h * 0.1).backward()
+        loss_c_h.backward()
         self.optimizer.step()
 
-        wandb.log({'loss_c_h': loss_c_h.item(),
-                   'loss_c_l': loss_c_l.item(),
-                   'loss_a_h': loss_a_h.item(),
-                   'high_weight': self.high_weight
-                   })
+        wandb.log({'loss_c_h': loss_c_h.item()})
 
         self.high_weight = min(0.5, self.high_weight + 4e-4)
 
@@ -205,5 +149,4 @@ class RLAgent(BaseAgent):
             self.update_target()
 
     def update_target(self):
-        self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters(), tau=self.target_tau)
-        self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters(), tau=self.target_tau)
+        pass

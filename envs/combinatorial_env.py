@@ -33,7 +33,6 @@ class CombinatorialEnv(object):
         return np.ones(shape=(self.n_agents, self.n_enemies))
 
     def step(self, actions):
-        assert actions < self.n_actions
         reward = self.compute_reward(actions, self.global_reward)
         return reward, True, {}
 

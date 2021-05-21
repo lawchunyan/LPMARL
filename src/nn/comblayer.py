@@ -107,24 +107,26 @@ class MatchingLayer(nn.Module):
         super().__init__()
         self.x = cp.Variable(n * n)
         self.coeff = cp.Parameter(n * n)
-        self.A = cp.Parameter((n, n))
+        self.A = cp.Parameter((n, n * n))
         self.b = cp.Parameter(n)
-        self.C = cp.Parameter((n, n))
+        self.C = cp.Parameter((n, n * n))
         self.d = cp.Parameter(n)
         variables = [self.x]
         self.parameters = [self.coeff, self.A, self.b, self.C, self.d]
 
         self.optimLayer = OptLayer(variables=variables, parameters=self.parameters, objective=objective,
-                                   inequalities=[], equalities=[equality])
-        A_val = torch.eye(n)
+                                   inequalities=[ineq_lb, ineq_up, inequality], equalities=[equality1])
+        A_val = torch.zeros((n, n * n))
+        for i in range(n):
+            A_val[i, i * n:(i + 1) * n] = 1
         self.A_val = A_val
         self.b_val = torch.ones(n)
 
         # set C value
-        temp = torch.eye(m)
+        temp = torch.eye(n)
         C_value = torch.cat([temp for _ in range(n)], axis=-1)
         self.C_val = C_value
-        self.d_val = torch.ones(m) * 6
+        self.d_val = torch.ones(n) * 1.5
 
     def forward(self, lst_coeff):
         n_batch = len(lst_coeff)
@@ -138,8 +140,6 @@ class MatchingLayer(nn.Module):
 
 
 def objective(x, coeff, A, b, C, d):
-    # return - coeff @ x + 1e-5 * cp.sum_squares(x)
-    # return - coeff @ x + 1e-5 * x @ x
     return - coeff @ x + 1e-5 * sum(x * x)  # ok
 
 
@@ -151,16 +151,10 @@ def equality2(x, coeff, A, b, C, d):
     return C @ x - d
 
 
-# def equality2(x, coeff, A, b, C, d):
-#     return x * (1 - x)
-
-
 def inequality(x, coeff, A, b, C, d):
     return C @ x - d
 
 
-# def eqality
-#
 def ineq_lb(x, coeff, A, b, C, d):
     return - x
 
