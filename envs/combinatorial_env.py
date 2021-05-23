@@ -48,7 +48,8 @@ class ZeroShotGroupingEnv(object):
     def compute_reward_split(self, actions, global_reward=False, n_groups=None):
         setA = set(actions)
         if global_reward:
-            max_distance = self.n_agents - n_groups
+            max_distance = max(self.n_agents - n_groups, n_groups, self.n_agents)
+
             min_distance = 0
             curr_distance = abs(len(setA) - n_groups)
 

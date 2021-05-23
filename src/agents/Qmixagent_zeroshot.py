@@ -22,9 +22,9 @@ class QmixAgent(BaseAgent):
         super(QmixAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                         memory_type=memory_type, name=name)
 
-        self.critic = MLP(state_dim * 2, 1, hidden_dims=[hidden_dim], hidden_activation=nn.LeakyReLU(),
+        self.critic = MLP(state_dim * 2, 1, hidden_dims=[ ], hidden_activation=nn.LeakyReLU(),
                           out_actiation=nn.LeakyReLU())
-        self.target_critic = MLP(state_dim * 2, 1, hidden_dims=[hidden_dim], hidden_activation=nn.LeakyReLU(),
+        self.target_critic = MLP(state_dim * 2, 1, hidden_dims=[ ], hidden_activation=nn.LeakyReLU(),
                                  out_actiation=nn.LeakyReLU())
         self.update_target_network(self.target_critic.parameters(), self.critic.parameters())
 
@@ -76,9 +76,13 @@ class QmixAgent(BaseAgent):
         qs = dn(self.get_qs(agent_obs, enemy_obs, self.n_ag, self.n_en))
 
         if explore:
-
+            argmax_action = qs.argmax(axis=1)
             rand_q_val = np.random.random((qs.shape))
-            action = rand_q_val.argmax(axis=1)
+            rand_action = rand_q_val.argmax(axis=1)
+
+            select_random = np.random.random((rand_action.shape)) < self.epsilon
+
+            action = select_random * rand_action + ~select_random * argmax_action
         else:
             action = qs.argmax(axis=1)
 

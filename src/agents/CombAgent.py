@@ -16,7 +16,8 @@ Transition_LP = namedtuple('Transition_LP',
 class RLAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
-                 memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, low_action=True, coeff=6):
+                 memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, low_action=True, coeff=6,
+                 **kwargs):
         super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                       memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
@@ -59,7 +60,8 @@ class RLAgent(BaseAgent):
     def get_action(self, obs, explore=True):
         agent_obs = obs[:self.n_ag]
         enemy_obs = obs[self.n_ag:]
-        high_action = self.get_high_action(agent_obs, enemy_obs, self.n_ag, self.n_en, explore=False)
+        high_action = self.get_high_action(agent_obs, enemy_obs, self.n_ag, self.n_en, pertubation=False)
+
         return dn(high_action)
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
@@ -79,11 +81,11 @@ class RLAgent(BaseAgent):
         coeff = self.critic_h_target(concat_input)
         return coeff
 
-    def get_high_action(self, agent_obs, enemy_obs, num_ag=8, num_en=8, explore=False, h_action=None):
+    def get_high_action(self, agent_obs, enemy_obs, num_ag=8, num_en=8, pertubation=False, h_action=None):
         coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)
 
         # coeff = coeff_bef.reshape(num_ag, num_en)
-        if explore:
+        if pertubation:
             coeff = torch.normal(mean=coeff, std=self.std)
 
         solution = self.actor_h([coeff.squeeze()])

@@ -13,7 +13,7 @@ use_wandb = True
 
 num_groups = 10
 
-env = ZeroShotGroupingEnv(10, 10, enemy_obs=True, global_reward=True, num_optimal_groups=num_groups)
+env = ZeroShotGroupingEnv(20, 20, enemy_obs=True, global_reward=True, num_optimal_groups=num_groups)
 
 state_dim = env.get_obs_size()
 num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
@@ -35,7 +35,7 @@ agent_config = {"state_dim": state_dim,
                 "lr": 5e-4,
                 'memory_type': 'sample',
                 'target_tau': 0.5,
-                'name': 'Qmix',
+                'name': 'DQN',
                 'target_update_interval': 200,
                 'coeff': 5
                 }
@@ -43,7 +43,7 @@ agent_config = {"state_dim": state_dim,
 agent = DQNAgent(**agent_config)
 
 if TRAIN:
-    exp_name = date.today().strftime("%Y%m%d") + "_" + "COenv" + "_{}groups".format(num_groups) + \
+    exp_name = date.today().strftime("%Y%m%d") + "_" + "COenv" + "_{}groups_".format(num_groups) + \
                agent_config['name']
 
     dirName = 'result/{}'.format(exp_name)
@@ -67,7 +67,8 @@ if TRAIN:
         wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
 
 else:
-    agent.load_state_dict(torch.load('result/20210521_COenv_coeff2/18000.th'))
+    use_wandb = False
+    agent.load_state_dict(torch.load('result/20210523_COenv_10groups_DQN_3/14000.th'))
 
 for e in range(num_episodes):
     env.reset()
@@ -94,7 +95,7 @@ for e in range(num_episodes):
     if agent.can_fit():
         agent.fit(e)
 
-    print("EP:{}, R:{}".format(e, episode_reward))
+    # print("EP:{}, R:{}".format(e, episode_reward))
     if use_wandb:
         wandb.log({'reward': episode_reward,
                    'epsilon': agent.epsilon,

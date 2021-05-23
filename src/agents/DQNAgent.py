@@ -15,7 +15,8 @@ Transition_LP = namedtuple('Transition_DQN',
 class DQNAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
-                 memory_type="ep", target_tau=1.0, name='DQN', target_update_interval=200, low_action=True, coeff=6, **kwargs):
+                 memory_type="ep", target_tau=1.0, name='DQN', target_update_interval=200, low_action=True, coeff=6,
+                 **kwargs):
         super(DQNAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                        memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
@@ -57,9 +58,9 @@ class DQNAgent(BaseAgent):
     def get_action(self, obs, explore=True):
         agent_obs = obs[:self.n_ag]
         enemy_obs = obs[self.n_ag:]
-        high_action = self.get_high_action(agent_obs, enemy_obs, self.n_ag, self.n_en, explore=False)
-        self.epsilon = max(self.epsilon-self.epsilon_decay, self.epsilon_min)
-        return dn(high_action)
+        high_action = self.get_high_action(agent_obs, enemy_obs, self.n_ag, self.n_en, explore=explore)
+        self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
+        return high_action
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
         agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
@@ -79,10 +80,16 @@ class DQNAgent(BaseAgent):
         return coeff.reshape(num_ag, num_en)
 
     def get_high_action(self, agent_obs, enemy_obs, num_ag=8, num_en=8, explore=False, h_action=None):
-        qs = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)
+        qs = dn(self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en))
 
         if explore:
-            chosen_h_action = torch.randint(num_ag, size=(num_en,))
+            argmax_action = qs.argmax(axis=1)
+            rand_q_val = np.random.random((qs.shape))
+            rand_action = rand_q_val.argmax(axis=1)
+
+            select_random = np.random.random((rand_action.shape)) < self.epsilon
+
+            chosen_h_action = select_random * rand_action + ~select_random * argmax_action
         else:
             chosen_h_action = torch.argmax(qs, dim=-1)
 
