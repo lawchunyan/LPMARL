@@ -17,20 +17,25 @@ class RLAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
                  memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, low_action=True, coeff=6,
-                 **kwargs):
+                 use_enemy_feat=True, **kwargs):
         super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                       memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
 
+        if use_enemy_feat:
+            critic_out_dim = 1
+        else:
+            critic_out_dim = action_dim
+
         # layers
         self.critic_h = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
                                       nn.LeakyReLU(),
-                                      nn.Linear(hidden_dim, 1),
+                                      nn.Linear(hidden_dim, critic_out_dim),
                                       nn.LeakyReLU())
 
         self.critic_h_target = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
                                              nn.LeakyReLU(),
-                                             nn.Linear(hidden_dim, 1),
+                                             nn.Linear(hidden_dim, critic_out_dim),
                                              nn.LeakyReLU())
         self.actor_h = MatchingLayer(n_ag, coeff=coeff)
 
@@ -63,6 +68,13 @@ class RLAgent(BaseAgent):
         high_action = self.get_high_action(agent_obs, enemy_obs, self.n_ag, self.n_en, pertubation=False)
 
         return dn(high_action)
+
+    def get_qs(self, obs, actions):
+        agent_obs = obs[:self.n_ag]
+        enemy_obs = obs[self.n_ag:]
+        qs = self.get_high_qs(agent_obs, enemy_obs, self.n_ag, self.n_en)
+        out_qs = qs.reshape(self.n_ag, self.n_en).gather(dim=1, index=actions.reshape(-1, 1))
+        return out_qs
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
         agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])

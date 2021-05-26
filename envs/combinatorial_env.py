@@ -39,6 +39,7 @@ class ZeroShotGroupingEnv(object):
         return np.ones(shape=(self.n_agents, self.n_enemies))
 
     def step(self, actions):
+        actions = np.array(actions).reshape(-1)
         reward = self.reward_ftn(actions, self.global_reward)
         return reward, True, {}
 

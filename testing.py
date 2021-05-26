@@ -1,6 +1,6 @@
 import torch
 
-from src.agents.Hier_LPagent import RLAgent
+from src.agents.LPagent_Hier import RLAgent
 from envs.sc2_env_wrapper import StarCraft2Env
 
 env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300, enemy_obs=True)

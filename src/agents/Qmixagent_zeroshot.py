@@ -22,9 +22,9 @@ class QmixAgent(BaseAgent):
         super(QmixAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                         memory_type=memory_type, name=name)
 
-        self.critic = MLP(state_dim * 2, 1, hidden_dims=[ ], hidden_activation=nn.LeakyReLU(),
+        self.critic = MLP(state_dim * 2, 1, hidden_dims=[], hidden_activation=nn.LeakyReLU(),
                           out_actiation=nn.LeakyReLU())
-        self.target_critic = MLP(state_dim * 2, 1, hidden_dims=[ ], hidden_activation=nn.LeakyReLU(),
+        self.target_critic = MLP(state_dim * 2, 1, hidden_dims=[], hidden_activation=nn.LeakyReLU(),
                                  out_actiation=nn.LeakyReLU())
         self.update_target_network(self.target_critic.parameters(), self.critic.parameters())
 
@@ -113,7 +113,7 @@ class QmixAgent(BaseAgent):
         loss = []
 
         for sample_idx in range(self.batch_size):
-            agent_obs, enemy_obs = s_tensor[sample_idx][:self.n_ag], s[sample_idx][self.n_ag:]
+            agent_obs, enemy_obs = s_tensor[sample_idx][:self.n_ag], s_tensor[sample_idx][self.n_ag:]
             action_taken = a_tensor[sample_idx]
             rwd = r_tensor[sample_idx]
             states = gs_tensor[sample_idx].reshape(-1, 1)
@@ -131,8 +131,7 @@ class QmixAgent(BaseAgent):
         self.optimizer.zero_grad()
         loss.backward()
 
-        wandb.log({'loss_critic': loss.item(),
-                   })
+        # wandb.log({'loss_critic': loss.item(),})
 
         if e % self.target_update_interval == 0:
             self.update_target()
@@ -143,5 +142,6 @@ class QmixAgent(BaseAgent):
 
     def push(self, state, action, reward):
 
-        global_state = state[:self.n_ag].reshape(-1)
+        # global_state = state[:self.n_ag].reshape(-1)
+        global_state = np.ones(self.n_ag)
         self.memory.push(state, action, reward, global_state)

@@ -4,7 +4,7 @@ import os
 
 from datetime import date
 from envs.combinatorial_env import ZeroShotGroupingEnv
-from src.agents.CombAgent import RLAgent
+from src.agents.LPagent_zeroshot import RLAgent
 from src.agents.Qmixagent_zeroshot import QmixAgent
 from src.agents.DQNAgent import DQNAgent
 
@@ -12,8 +12,9 @@ TRAIN = True
 use_wandb = True
 
 num_groups = 10
+coeff = 4
 
-env = ZeroShotGroupingEnv(20, 20, enemy_obs=True, global_reward=True, num_optimal_groups=num_groups)
+env = ZeroShotGroupingEnv(n_ag=10, n_en=10, enemy_obs=True, global_reward=True, num_optimal_groups=num_groups)
 
 state_dim = env.get_obs_size()
 num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
@@ -21,7 +22,7 @@ num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
 agent_config = {"state_dim": state_dim,
                 "n_ag": env.n_agents,
                 "n_en": env.n_enemies,
-                'state_shape': (env.n_agents, env.n_agents),
+                'state_shape': (env.n_agents),
                 "action_dim": env.n_enemies,
                 "memory_len": 300,
                 "batch_size": 50,
@@ -35,15 +36,15 @@ agent_config = {"state_dim": state_dim,
                 "lr": 5e-4,
                 'memory_type': 'sample',
                 'target_tau': 0.5,
-                'name': 'DQN',
                 'target_update_interval': 200,
-                'coeff': 5
+                'coeff': coeff
                 }
 
-agent = DQNAgent(**agent_config)
+agent = RLAgent(**agent_config)
+agent_config['name'] = agent.name
 
 if TRAIN:
-    exp_name = date.today().strftime("%Y%m%d") + "_" + "COenv" + "_{}groups_".format(num_groups) + \
+    exp_name = date.today().strftime("%Y%m%d") + "_{}into{}_max{}_".format(env.n_agents, num_groups, coeff) + \
                agent_config['name']
 
     dirName = 'result/{}'.format(exp_name)
@@ -68,7 +69,7 @@ if TRAIN:
 
 else:
     use_wandb = False
-    agent.load_state_dict(torch.load('result/20210523_COenv_10groups_DQN_3/14000.th'))
+    agent.load_state_dict(torch.load('result/20210524_10into10_max2_DQN/12000.th'))
 
 for e in range(num_episodes):
     env.reset()

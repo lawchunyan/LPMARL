@@ -6,7 +6,7 @@ import wandb
 
 from datetime import date
 from envs.sc2_env_wrapper import StarCraft2Env
-from src.agents.Hier_LPagent import RLAgent
+from src.agents.LPagent_Hier import RLAgent
 
 TRAIN = True
 

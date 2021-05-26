@@ -9,7 +9,7 @@ from src.nn.optimlayer import MatchingLayer
 from src.agents.baseagent import BaseAgent
 from utils.torch_util import dn
 
-Transition_LP = namedtuple('Transition_LP',
+Transition_LP = namedtuple('Transition_LP_hier',
                            ('state', 'high_action', 'action', 'reward', 'next_state', 'terminated', 'avail_action',
                             'high_rwd'))
 

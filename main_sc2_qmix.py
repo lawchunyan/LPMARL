@@ -15,7 +15,7 @@ state_dim = env.get_obs_size()
 action_dim = env.n_actions - 1
 
 # num_episodes = 200000  # goal: 2 million timesteps; 15000 episodes approx.
-num_timestep = 2000000
+num_timestep = 5000000
 
 agent_config = {'state_dim': state_dim,
                 'action_dim': action_dim,
@@ -24,7 +24,7 @@ agent_config = {'state_dim': state_dim,
                 'batch_size': 50,
                 'train_start': 100,
                 'epsilon_start': 1.0,
-                'epsilon_decay': 1e-4,
+                'epsilon_decay': 5e-5,
                 'gamma': 0.99,
                 'hidden_dim': 32,
                 'mixer': True,
@@ -32,7 +32,6 @@ agent_config = {'state_dim': state_dim,
                 'lr': 1e-4,
                 'state_shape': env.get_state_size(),
                 'memory_type': 'ep',
-                'name': 'Qmix',
                 'target_update_interval': 200,
                 'target_tau': 0.5
                 }
