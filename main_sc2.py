@@ -3,15 +3,15 @@ import wandb
 import os
 
 from datetime import date
-# from envs.sc2_env_wrapper import StarCraft2Env
-from smac.env import StarCraft2Env
+from envs.sc2_env_wrapper import StarCraft2Env
+# from smac.env import StarCraft2Env
 from src.agents.LPagent_Hier import RLAgent
-from src.agents.Qmixagent import QAgent
+from src.agents.Qmixagent import QmixAgent
 
 TRAIN = True
 use_wandb = True
 
-env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300)  # , enemy_obs=True)
+env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300, enemy_obs=True)
 
 state_dim = env.get_obs_size()
 num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
@@ -67,9 +67,12 @@ for e in range(num_episodes):
     while not terminated:
         ep_len += 1
         state = env.get_obs()
+        agent_obs = state[:env.n_agents]
+        enemy_obs = state[env.n_agents:]
+
         avail_actions = env.get_avail_actions()
 
-        action, high_action, low_action = agent.get_action(state, avail_actions)
+        action, high_action, low_action = agent.get_action(agent_obs, enemy_obs, avail_actions)
 
         reward, terminated, _ = env.step(action)
 
@@ -77,7 +80,7 @@ for e in range(num_episodes):
         next_state = env.get_obs()
         high_r = (next_killed_enemies - prev_killed_enemies) * 5
 
-        agent.push(state, high_action, low_action, reward, next_state, terminated, avail_actions, high_r)
+        agent.push(agent_obs, enemy_obs, high_action, low_action, reward, next_state, terminated, avail_actions, high_r)
         episode_reward += reward
         prev_killed_enemies = next_killed_enemies
 

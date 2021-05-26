@@ -126,6 +126,14 @@ def make_env():
 
     return env
 
+
+def get_landmark_state(env: MultiAgentEnv):
+    out_state = []
+    for landmark in env.world.landmarks:
+        out_state.append(landmark.state.p_pos)
+
+    return np.array(out_state)
+
 # def vis_state(env):
 #     fig = plt.figure(figsize=(5, 5))
 #     ax = fig.add_subplot(111)

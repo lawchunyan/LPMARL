@@ -4,7 +4,7 @@ import os
 
 from datetime import date
 from envs.sc2_env_wrapper import StarCraft2Env
-from src.agents.Qmixagent import QAgent
+from src.agents.Qmixagent import QmixAgent
 
 use_wandb = True
 test = False
@@ -36,7 +36,7 @@ agent_config = {'state_dim': state_dim,
                 'target_tau': 0.5
                 }
 
-agent = QAgent(**agent_config)
+agent = QmixAgent(**agent_config)
 exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name
 
 dirName = 'result/{}'.format(exp_name)

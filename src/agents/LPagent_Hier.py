@@ -17,27 +17,33 @@ Transition_LP = namedtuple('Transition_LP_hier',
 class RLAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
-                 memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, low_action=True):
+                 memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, sc2=True, en_feat_dim=None,
+                 ):
         super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                       memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
 
+        if en_feat_dim is None:
+            critic_in_dim = state_dim * 2
+        else:
+            critic_in_dim = state_dim + en_feat_dim
+
         # layers
-        self.critic_h = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
+        self.critic_h = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, 1),
                                       nn.LeakyReLU())
 
-        self.critic_h_target = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
+        self.critic_h_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              nn.LeakyReLU())
         self.actor_h = MatchingLayer(n_ag, n_en)
-        self.critic_l = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
+        self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, action_dim + 1),
                                       nn.LeakyReLU())
-        self.critic_l_target = nn.Sequential(nn.Linear(state_dim * 2, hidden_dim),
+        self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, action_dim + 1),
                                              nn.LeakyReLU())
@@ -64,24 +70,24 @@ class RLAgent(BaseAgent):
         self.high_weight = 0.1
         self.target_tau = target_tau
         self.target_update_interval = target_update_interval
-        self.low_action=low_action
+        self.sc2 = sc2
 
-    def get_action(self, obs, avail_actions, explore=True):
-        agent_obs = obs[:self.n_ag]
-        enemy_obs = obs[self.n_ag:]
+    def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True):
         high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                              self.n_en, explore=False)
-        if self.low_action:
-            low_action = self.get_low_action(agent_obs, high_action, high_feat, avail_actions, explore=explore)
-            out_action = self.convert_low_action(low_action, high_action, avail_actions)
-
-            # anneal epsilon
-            self.epsilon = max(self.epsilon_min, self.epsilon - self.epsilon_decay)
-
-            return out_action, high_action, low_action
-
+        if self.sc2:
+            avail_action_mask = self.get_sc2_low_action_mask(avail_actions, high_action)
+            low_action = self.get_low_action(agent_obs, high_feat, avail_action_mask, explore=explore)
+            out_action = self.convert_low_action_sc2(low_action, high_action, avail_actions)
         else:
-            return out_action
+            avail_action_mask = None
+            low_action = self.get_low_action(agent_obs, high_feat, avail_action_mask, explore=explore)
+            out_action = low_action
+
+        # anneal epsilon
+        self.epsilon = max(self.epsilon_min, self.epsilon - self.epsilon_decay)
+
+        return out_action, high_action, low_action
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
         agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
@@ -140,27 +146,30 @@ class RLAgent(BaseAgent):
         low_action_val = self.critic_l_target(action_inp)
         return low_action_val
 
-    def get_low_action(self, agent_obs, high_action, high_feat, avail_actions, explore=True):
-        low_action_val = self.get_low_qs(agent_obs, high_feat).cpu().detach().numpy()
-
-        # making new action mask using
+    @staticmethod
+    def get_sc2_low_action_mask(avail_actions, high_action):
+        # making new action mask using existing avail action mask and taken high action
         # moving action
         avail_action_mask_move = avail_actions[:, 1:6]
         # attacking action
         avail_action_mask_high = np.take_along_axis(avail_actions[:, 6:], dn(high_action.reshape(-1, 1)), axis=1)
         avail_action_mask = np.concatenate([avail_action_mask_move, avail_action_mask_high], axis=-1)
+        return avail_action_mask
+
+    def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
+        low_action_val = self.get_low_qs(agent_obs, high_feat).cpu().detach().numpy()
 
         # masking out unavailable action
         low_action_val[avail_action_mask == 0] = -9999
 
         if explore:
             argmax_low_action = low_action_val.argmax(axis=1)
-            rand_low_action_val = np.random.random((low_action_val.shape))
+            rand_low_action_val = np.random.random(low_action_val.shape)
             rand_low_action_val[avail_action_mask == 0] = -9999
             rand_low_action = rand_low_action_val.argmax(axis=1)
 
             # making random prob of shape = (num_ag,)
-            random_indicator = np.random.random((rand_low_action.shape))
+            random_indicator = np.random.random(rand_low_action.shape)
             # boolean value of selecting random
             select_random = random_indicator < self.epsilon
 
@@ -170,8 +179,8 @@ class RLAgent(BaseAgent):
 
         return low_action
 
-    def convert_low_action(self, low_action, high_action, avail_actions):
-
+    @staticmethod
+    def convert_low_action_sc2(low_action, high_action, avail_actions):
         out_action = low_action + 1
         out_action[low_action == 5] = high_action[low_action == 5] + 6
 
@@ -183,7 +192,8 @@ class RLAgent(BaseAgent):
     def fit(self, e):
 
         samples = self.memory.sample(self.batch_size)
-        s = []
+        ag_obs = []
+        en_obs = []
         a_h = []
         a_l = []
         r = []
@@ -192,7 +202,7 @@ class RLAgent(BaseAgent):
         avail_actions = []
         high_r = []
 
-        lst = [s, a_h, a_l, r, ns, t, avail_actions, high_r]
+        lst = [ag_obs, en_obs, a_h, a_l, r, ns, t, avail_actions, high_r]
 
         for sample in samples:
             for sam, llst in zip(sample, lst):
@@ -206,7 +216,7 @@ class RLAgent(BaseAgent):
         loss_actor_l = []
 
         for sample_idx in range(self.batch_size):
-            agent_obs, enemy_obs = s[sample_idx][:self.n_ag], s[sample_idx][self.n_ag:]
+            agent_obs, enemy_obs = ag_obs[sample_idx], en_obs[sample_idx]
             high_action_taken = a_h[sample_idx]
             low_action = a_l[sample_idx]
             next_avail_action = next_avail_actions[sample_idx]
@@ -235,19 +245,22 @@ class RLAgent(BaseAgent):
 
             with torch.no_grad():
                 next_low_q_val = self.get_low_qs_target(n_agent_obs, n_enemy_obs[next_high_action])
-                next_move_mask = next_avail_action[:, 1:1 + 5]  # shape (n_agent x n_action)
-                next_attack_mask = next_avail_action[:, 1 + 5:]
+                dead_mask = None
+                if self.sc2:
+                    next_low_action_mask = self.get_sc2_low_action_mask(next_avail_action, high_action_taken)
 
-                next_action_mask_attack = np.take_along_axis(next_attack_mask,
-                                                             high_action_taken.detach().numpy().reshape(-1, 1),
-                                                             -1)
-                next_action_mask = np.concatenate([next_move_mask, next_action_mask_attack], axis=-1)
-                next_low_q_val[torch.tensor(next_action_mask == 0)] = -9999
+                    # next_move_mask = next_avail_action[:, 1:1 + 5]  # shape (n_agent x n_action)
+                    # next_attack_mask = next_avail_action[:, 1 + 5:]
+                    # next_action_mask_attack = np.take_along_axis(next_attack_mask,
+                    #                                              high_action_taken.detach().numpy().reshape(-1, 1),
+                    #                                              -1)
+                    # next_action_mask = np.concatenate([next_move_mask, next_action_mask_attack], axis=-1)
+                    next_low_q_val[torch.tensor(next_low_action_mask == 0)] = -9999
+                    dead_mask = next_avail_action[:, 0]
                 selected_low_q_target = next_low_q_val.max(dim=1)[0]
 
             low_q_target = r_l + self.gamma * selected_low_q_target * (1 - t[sample_idx])
 
-            dead_mask = next_avail_action[:, 0]
             low_qs[dead_mask == 1] = 0
             low_q_target[dead_mask == 1] = 0
 
