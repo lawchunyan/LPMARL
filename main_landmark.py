@@ -1,5 +1,4 @@
-import argparse
-from collections import namedtuple
+from src.agents.LPagent_Hier import LPAgent
 from envs.cooperative_navigation import make_env, get_landmark_state
 
 n_ag = 10
@@ -22,6 +21,7 @@ agent_config = {"n_ag": n_ag,
             }
 
 env = make_env()
+agent = d
 
 for e in range(n_ep):
     t = 0

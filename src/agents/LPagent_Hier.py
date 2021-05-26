@@ -14,12 +14,12 @@ Transition_LP = namedtuple('Transition_LP_hier',
                             'high_rwd'))
 
 
-class RLAgent(BaseAgent):
+class LPAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
                  memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, sc2=True, en_feat_dim=None,
                  ):
-        super(RLAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
+        super(LPAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                       memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
 

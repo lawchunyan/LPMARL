@@ -5,7 +5,7 @@ import os
 from datetime import date
 from envs.sc2_env_wrapper import StarCraft2Env
 # from smac.env import StarCraft2Env
-from src.agents.LPagent_Hier import RLAgent
+from src.agents.LPagent_Hier import LPAgent
 from src.agents.Qmixagent import QmixAgent
 
 TRAIN = True
@@ -34,7 +34,7 @@ agent_config = {"state_dim": state_dim,
                 'target_update_interval': 200
                 }
 
-agent = RLAgent(**agent_config)
+agent = LPAgent(**agent_config)
 exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name
 
 dirName = 'result/{}'.format(exp_name)

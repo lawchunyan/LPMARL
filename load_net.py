@@ -6,7 +6,7 @@ import wandb
 
 from datetime import date
 from envs.sc2_env_wrapper import StarCraft2Env
-from src.agents.LPagent_Hier import RLAgent
+from src.agents.LPagent_Hier import LPAgent
 
 TRAIN = True
 
@@ -33,7 +33,7 @@ agent_config = {"state_dim": state_dim,
 n_agents = env.n_agents
 n_enemies = env.n_enemies
 
-agent = RLAgent(**agent_config)
+agent = LPAgent(**agent_config)
 agent.load_state_dict(torch.load('result/20210517_0.th'))
 
 for e in range(10):
