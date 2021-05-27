@@ -100,7 +100,7 @@ class OptLayer(nn.Module):
 
 
 class MatchingLayer(nn.Module):
-    def __init__(self, n, m):
+    def __init__(self, n, m, coeff):
         """
         :param n: num_ag
         :param m: num_target
@@ -129,7 +129,7 @@ class MatchingLayer(nn.Module):
         temp = torch.eye(m)
         C_value = torch.cat([temp for _ in range(n)], axis=-1)
         self.C_val = C_value
-        self.d_val = torch.ones(m) * 6
+        self.d_val = torch.ones(m) * coeff
 
     def forward(self, lst_coeff):
         n_batch = len(lst_coeff)

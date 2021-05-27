@@ -113,12 +113,12 @@ class Scenario(BaseScenario):
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
 
 
-def make_env():
+def make_env(n_ag, n_en):
     # load scenario from script
     scenario = Scenario()
 
     # create world
-    world = scenario.make_world()
+    world = scenario.make_world(n_ag, n_en)
 
     # create multiagent environment
     env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
@@ -135,12 +135,12 @@ def get_landmark_state(env: MultiAgentEnv):
     return np.array(out_state)
 
 # def vis_state(env):
-#     fig = plt.figure(figsize=(5, 5))
+#     fig = plt.figure(figsize=(5,5))
 #     ax = fig.add_subplot(111)
 #
 #     # msking rectangle
-#     ax.set_xlim([-1, 1])
-#     ax.set_ylim([-1, 1])
+#     ax.set_xlim([-3, 3])
+#     ax.set_ylim([-3, 3])
 #     ax.set_xticks([])
 #     ax.set_yticks([])
 #

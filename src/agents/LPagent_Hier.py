@@ -10,23 +10,25 @@ from src.agents.baseagent import BaseAgent
 from utils.torch_util import dn
 
 Transition_LP = namedtuple('Transition_LP_hier',
-                           ('state', 'high_action', 'action', 'reward', 'next_state', 'terminated', 'avail_action',
-                            'high_rwd'))
+                           ('state_ag', 'state_en', 'high_action', 'low_action', 'reward', 'n_state_ag', 'n_state_en', 'terminated',
+                            'avail_action', 'high_rwd'))
 
 
 class LPAgent(BaseAgent):
     def __init__(self, state_dim, n_ag, n_en, action_dim=5, batch_size=5, memory_len=10000, epsilon_start=1.0,
                  epsilon_decay=2e-5, train_start=1000, gamma=0.99, hidden_dim=32, loss_ftn=nn.MSELoss(), lr=5e-4,
                  memory_type="ep", target_tau=1.0, name='LP', target_update_interval=200, sc2=True, en_feat_dim=None,
-                 ):
+                 coeff=5, **kwargs):
         super(LPAgent, self).__init__(state_dim, action_dim, memory_len, batch_size, train_start, gamma,
                                       memory_type=memory_type, name=name)
         self.memory.transition = Transition_LP
 
         if en_feat_dim is None:
             critic_in_dim = state_dim * 2
+            critic_l_out_dim = action_dim + 1
         else:
             critic_in_dim = state_dim + en_feat_dim
+            critic_l_out_dim = action_dim
 
         # layers
         self.critic_h = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
@@ -38,14 +40,14 @@ class LPAgent(BaseAgent):
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              nn.LeakyReLU())
-        self.actor_h = MatchingLayer(n_ag, n_en)
+        self.actor_h = MatchingLayer(n_ag, n_en, coeff)
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
-                                      nn.Linear(hidden_dim, action_dim + 1),
+                                      nn.Linear(hidden_dim, critic_l_out_dim),
                                       nn.LeakyReLU())
         self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                              nn.LeakyReLU(),
-                                             nn.Linear(hidden_dim, action_dim + 1),
+                                             nn.Linear(hidden_dim, critic_l_out_dim),
                                              nn.LeakyReLU())
 
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters())
@@ -81,7 +83,7 @@ class LPAgent(BaseAgent):
             out_action = self.convert_low_action_sc2(low_action, high_action, avail_actions)
         else:
             avail_action_mask = None
-            low_action = self.get_low_action(agent_obs, high_feat, avail_action_mask, explore=explore)
+            low_action = self.get_low_action(agent_obs, high_feat, None, explore=explore)
             out_action = low_action
 
         # anneal epsilon
@@ -98,9 +100,10 @@ class LPAgent(BaseAgent):
 
         dead_enemy = enemy_obs[:, -1] == 0
 
-        reshaped_coeff = coeff.reshape(num_ag, num_en)
-        reshaped_coeff[:, dead_enemy] = 0
-        coeff = reshaped_coeff.reshape(-1, 1)
+        if self.sc2:
+            reshaped_coeff = coeff.reshape(num_ag, num_en)
+            reshaped_coeff[:, dead_enemy] = 0
+            coeff = reshaped_coeff.reshape(-1, 1)
 
         return coeff
 
@@ -197,12 +200,13 @@ class LPAgent(BaseAgent):
         a_h = []
         a_l = []
         r = []
-        ns = []
+        n_ag_obs = []
+        n_en_obs = []
         t = []
         avail_actions = []
         high_r = []
 
-        lst = [ag_obs, en_obs, a_h, a_l, r, ns, t, avail_actions, high_r]
+        lst = [ag_obs, en_obs, a_h, a_l, r, n_ag_obs, n_en_obs, t, avail_actions, high_r]
 
         for sample in samples:
             for sam, llst in zip(sample, lst):
@@ -220,8 +224,9 @@ class LPAgent(BaseAgent):
             high_action_taken = a_h[sample_idx]
             low_action = a_l[sample_idx]
             next_avail_action = next_avail_actions[sample_idx]
-            r_l = r[sample_idx]
-            r_h = high_r[sample_idx]
+            r_l = torch.Tensor(r[sample_idx]).to(self.device)
+            r_h = torch.Tensor(high_r[sample_idx]).to(self.device)
+            terminated = torch.Tensor(t[sample_idx]).to(self.device)
 
             _, high_en_feat, h_logit = self.get_high_action(agent_obs, enemy_obs, explore=False,
                                                             h_action=high_action_taken,
@@ -230,12 +235,12 @@ class LPAgent(BaseAgent):
             coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag=self.n_ag, num_en=self.n_en)
             high_qs = coeff.reshape(self.n_ag, self.n_en).gather(dim=1, index=high_action_taken.reshape(-1, 1))
 
-            n_agent_obs, n_enemy_obs = ns[sample_idx][:self.n_ag], ns[sample_idx][self.n_ag:]
+            n_agent_obs, n_enemy_obs = n_ag_obs[sample_idx], n_en_obs[sample_idx]
             next_high_q_val, next_high_action = self.get_high_qs(n_agent_obs, n_enemy_obs, self.n_ag,
                                                                  self.n_en). \
                 reshape(self.n_ag, self.n_en).max(dim=1)
 
-            high_q_target = r_h + self.gamma * next_high_q_val.detach() * (1 - t[sample_idx])
+            high_q_target = r_h + self.gamma * next_high_q_val.detach() * (1 - terminated)
 
             # low q update
             low_qs = self.get_low_qs(agent_obs, high_en_feat).gather(dim=1,
@@ -259,7 +264,7 @@ class LPAgent(BaseAgent):
                     dead_mask = next_avail_action[:, 0]
                 selected_low_q_target = next_low_q_val.max(dim=1)[0]
 
-            low_q_target = r_l + self.gamma * selected_low_q_target * (1 - t[sample_idx])
+            low_q_target = r_l + self.gamma * selected_low_q_target * (1 - terminated)
 
             low_qs[dead_mask == 1] = 0
             low_q_target[dead_mask == 1] = 0
