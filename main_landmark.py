@@ -10,7 +10,7 @@ TRAIN = True
 use_wandb = True
 
 n_ag = 10
-ep_len = 1000
+num_episodes = 1000
 coeff = 3
 max_t = 30
 
@@ -63,22 +63,24 @@ if TRAIN:
     if use_wandb:
         wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
 
-for e in range(ep_len):
-    t = 0
+
+for e in range(num_episodes):
     episode_reward = 0
     state = env.reset()
     landmark_state = get_landmark_state(env)
+    ep_len = 0
 
     while True:
-        t += 1
+        ep_len += 1
         action, high_action, low_action = agent.get_action(state, landmark_state)
         onehot_action = change_to_one_hot(action)
-        ns, reward, terminated, _ = env.step(onehot_action)
+        next_state, reward, terminated, _ = env.step(onehot_action)
         episode_reward += sum(reward)
 
-        agent.push(state, landmark_state, high_action, low_action, reward, ns, landmark_state, terminated, 0, reward)
+        agent.push(state, landmark_state, high_action, low_action, reward, next_state, landmark_state, terminated, 0, reward)
+        state = next_state
 
-        if t > max_t:
+        if ep_len > max_t:
             break
 
     if agent.can_fit():
@@ -90,7 +92,10 @@ for e in range(ep_len):
                    'EP': e,
                    'timestep': ep_len})
 
+    if e % 1000 == 0 and TRAIN:
+        agent.save(curr_dir, num_episodes)
+
 if TRAIN:
-    agent.save(curr_dir, ep_len)
+    agent.save(curr_dir, num_episodes)
 
 env.close()
