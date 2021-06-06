@@ -7,7 +7,7 @@ from torch.optim import Adam
 from collections import namedtuple
 from src.nn.comblayer import MatchingLayer
 from src.agents.baseagent import BaseAgent
-from utils.torch_util import dn
+from src.utils.torch_util import dn
 
 Transition_LP = namedtuple('Transition_LP',
                            ('state', 'action', 'reward'))
@@ -77,20 +77,14 @@ class RLAgent(BaseAgent):
         return out_qs
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
-        agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
-        enemy_side_input = np.tile(enemy_obs, (num_ag, 1))
-
-        concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
-        coeff = self.critic_h(concat_input)
+        high_q_input = self.get_bipartite_state(agent_obs, enemy_obs, num_ag, num_en).to(self.device)
+        coeff = self.critic_h_target(high_q_input)
 
         return coeff
 
     def get_high_qs_target(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
-        agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
-        enemy_side_input = np.tile(enemy_obs, (num_ag, 1))
-
-        concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
-        coeff = self.critic_h_target(concat_input)
+        high_q_input = self.get_bipartite_state(agent_obs, enemy_obs, num_ag, num_en).to(self.device)
+        coeff = self.critic_h_target(high_q_input)
         return coeff
 
     def get_high_action(self, agent_obs, enemy_obs, num_ag=8, num_en=8, pertubation=False, h_action=None):

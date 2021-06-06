@@ -7,10 +7,11 @@ from torch.optim import Adam
 from collections import namedtuple
 from src.nn.optimlayer import MatchingLayer
 from src.agents.baseagent import BaseAgent
-from utils.torch_util import dn
+from src.utils.torch_util import dn
 
 Transition_LP = namedtuple('Transition_LP_hier',
-                           ('state_ag', 'state_en', 'high_action', 'low_action', 'reward', 'n_state_ag', 'n_state_en', 'terminated',
+                           ('state_ag', 'state_en', 'high_action', 'low_action', 'reward', 'n_state_ag', 'n_state_en',
+                            'terminated',
                             'avail_action', 'high_rwd'))
 
 
@@ -80,7 +81,7 @@ class LPAgent(BaseAgent):
         if self.sc2:
             avail_action_mask = self.get_sc2_low_action_mask(avail_actions, high_action)
             low_action = self.get_low_action(agent_obs, high_feat, avail_action_mask, explore=explore)
-            out_action = self.convert_low_action_sc2(low_action, high_action, avail_actions)
+            out_action = self.hier_action_to_sc2_action(low_action, high_action, avail_actions)
         else:
             avail_action_mask = None
             low_action = self.get_low_action(agent_obs, high_feat, None, explore=explore)
@@ -91,31 +92,31 @@ class LPAgent(BaseAgent):
 
         return out_action, high_action, low_action
 
-    def get_high_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
-        agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
-        enemy_side_input = np.tile(enemy_obs, (num_ag, 1))
-
-        concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
-        coeff = self.critic_h(concat_input)
-
-        dead_enemy = enemy_obs[:, -1] == 0
+    def get_high_qs(self, agent_obs, enemy_obs, num_ag, num_en):
+        high_q_input = self.get_bipartite_state(agent_obs, enemy_obs, num_ag, num_en).to(self.device)
+        coeff = self.critic_h(high_q_input)
 
         if self.sc2:
+            dead_enemy = enemy_obs[:, -1] == 0
             reshaped_coeff = coeff.reshape(num_ag, num_en)
             reshaped_coeff[:, dead_enemy] = 0
             coeff = reshaped_coeff.reshape(-1, 1)
 
         return coeff
 
-    def get_high_qs_target(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
-        agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
-        enemy_side_input = np.tile(enemy_obs, (num_ag, 1))
+    def get_high_qs_target(self, agent_obs, enemy_obs, num_ag, num_en):
+        high_q_input = self.get_bipartite_state(agent_obs, enemy_obs, num_ag, num_en).to(self.device)
+        coeff = self.critic_h_target(high_q_input)
 
-        concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
-        coeff = self.critic_h_target(concat_input)
+        if self.sc2:
+            dead_enemy = enemy_obs[:, -1] == 0
+            reshaped_coeff = coeff.reshape(num_ag, num_en)
+            reshaped_coeff[:, dead_enemy] = 0
+            coeff = reshaped_coeff.reshape(-1, 1)
+
         return coeff
 
-    def get_high_action(self, agent_obs, enemy_obs, num_ag=8, num_en=8, explore=False, h_action=None):
+    def get_high_action(self, agent_obs, enemy_obs, num_ag, num_en, explore=False, h_action=None):
         coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)
 
         # coeff = coeff_bef.reshape(num_ag, num_en)
@@ -144,53 +145,15 @@ class LPAgent(BaseAgent):
         low_action_val = self.critic_l(action_inp)
         return low_action_val
 
-    def get_low_qs_target(self, agent_obs, high_feat):
+    def get_low_qs_target(self, agent_obs, high_feat, *args, **kwargs):
         action_inp = torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)
         low_action_val = self.critic_l_target(action_inp)
         return low_action_val
 
-    @staticmethod
-    def get_sc2_low_action_mask(avail_actions, high_action):
-        # making new action mask using existing avail action mask and taken high action
-        # moving action
-        avail_action_mask_move = avail_actions[:, 1:6]
-        # attacking action
-        avail_action_mask_high = np.take_along_axis(avail_actions[:, 6:], dn(high_action.reshape(-1, 1)), axis=1)
-        avail_action_mask = np.concatenate([avail_action_mask_move, avail_action_mask_high], axis=-1)
-        return avail_action_mask
-
     def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
         low_action_val = self.get_low_qs(agent_obs, high_feat).cpu().detach().numpy()
-
-        # masking out unavailable action
-        low_action_val[avail_action_mask == 0] = -9999
-
-        if explore:
-            argmax_low_action = low_action_val.argmax(axis=1)
-            rand_low_action_val = np.random.random(low_action_val.shape)
-            rand_low_action_val[avail_action_mask == 0] = -9999
-            rand_low_action = rand_low_action_val.argmax(axis=1)
-
-            # making random prob of shape = (num_ag,)
-            random_indicator = np.random.random(rand_low_action.shape)
-            # boolean value of selecting random
-            select_random = random_indicator < self.epsilon
-
-            low_action = select_random * rand_low_action + ~select_random * argmax_low_action
-        else:
-            low_action = low_action_val.argmax(axis=1)
-
+        low_action = self.exploration_using_q(low_action_val, self.epsilon, explore, avail_action_mask)
         return low_action
-
-    @staticmethod
-    def convert_low_action_sc2(low_action, high_action, avail_actions):
-        out_action = low_action + 1
-        out_action[low_action == 5] = high_action[low_action == 5] + 6
-
-        dead_indicator = avail_actions[:, 0] == 1
-        out_action[dead_indicator] = 0
-
-        return out_action
 
     def fit(self, e):
 

@@ -2,8 +2,6 @@ import cvxpy as cp
 import torch
 import torch.nn as nn
 import torch.autograd as autograd
-import numpy as np
-from utils.torch_util import dn
 from itertools import accumulate
 
 default_solving_dict = {

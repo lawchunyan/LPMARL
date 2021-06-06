@@ -52,6 +52,8 @@ class Scenario(BaseScenario):
             landmark.state.p_pos = np.array([math.cos(theta * i) * 2, math.sin(theta * i) * 2])
             landmark.state.p_vel = np.zeros(world.dim_p)
 
+        world.num_hit = 0
+
     def benchmark_data(self, agent, world):
         rew = 0
         collisions = 0
@@ -84,8 +86,9 @@ class Scenario(BaseScenario):
             dist = np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
             min_dist = min(min_dist, dist)
 
-        if min_dist < 0.2:
+        if min_dist < 0.3:
             rew += 1
+            world.num_hit += 1
 
         rew -= min_dist
 

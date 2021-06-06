@@ -3,12 +3,12 @@ import torch.nn as nn
 import numpy as np
 import wandb
 
-from torch.optim import Adam, RMSprop
+from torch.optim import Adam
 from collections import namedtuple
 from src.agents.baseagent import BaseAgent
 from src.nn.qmixer import Qmixer
 from src.nn.mlp import MultiLayeredPerceptron as MLP
-from utils.torch_util import dn
+from src.utils.torch_util import dn
 
 Transition_base = namedtuple('Transition', (
     'state', 'action', 'reward', 'next_state', 'terminated', 'avail_action', 'global_state_prev', 'global_state_next'))
@@ -59,28 +59,13 @@ class QmixAgent(BaseAgent):
 
     def get_action(self, state, avail_actions, explore=True):
         qs = dn(self.get_qs(state))
-
         true_avail_action_mask = avail_actions[:, 1:]
-        qs[true_avail_action_mask == 0] = -9999
-
-        if explore:
-            argmax_action = qs.argmax(axis=1)
-
-            rand_q_val = np.random.random((qs.shape))
-            rand_q_val[true_avail_action_mask == 0] = -9999
-            rand_action = rand_q_val.argmax(axis=1)
-
-            select_random = np.random.random((rand_action.shape)) < self.epsilon
-
-            action = select_random * rand_action + ~select_random * argmax_action
-        else:
-            action = qs.argmax(axis=1)
+        action = self.exploration_using_q(qs, self.epsilon, explore, true_avail_action_mask)
 
         # anneal epsilon
         self.epsilon = max(self.epsilon - self.epsilon_decay, 0.05)
 
         env_action = self.convert_nn_action_to_sc2_action(action, avail_actions)
-
         return env_action, action
 
     @staticmethod

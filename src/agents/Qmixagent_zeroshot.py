@@ -1,14 +1,13 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import wandb
 
-from torch.optim import Adam, RMSprop
+from torch.optim import Adam
 from collections import namedtuple
 from src.agents.baseagent import BaseAgent
 from src.nn.qmixer import Qmixer
 from src.nn.mlp import MultiLayeredPerceptron as MLP
-from utils.torch_util import dn
+from src.utils.torch_util import dn
 
 Transition_base = namedtuple('Transition', ('state', 'action', 'reward', 'global_state_prev'))
 
@@ -54,19 +53,13 @@ class QmixAgent(BaseAgent):
         self.n_en = n_en
 
     def get_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
-        agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
-        enemy_side_input = np.tile(enemy_obs, (num_ag, 1))
-
-        concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
-        qs = self.critic(concat_input).reshape(num_ag, num_en)
+        q_input = self.get_bipartite_state(agent_obs, enemy_obs, num_ag, num_en).to(self.device)
+        qs = self.critic(q_input).reshape(num_ag, num_en)
         return qs
 
     def get_target_qs(self, agent_obs, enemy_obs, num_ag=8, num_en=8):
-        agent_side_input = np.concatenate([np.tile(agent_obs[i], (num_en, 1)) for i in range(num_ag)])
-        enemy_side_input = np.tile(enemy_obs, (num_ag, 1))
-
-        concat_input = torch.Tensor(np.concatenate([agent_side_input, enemy_side_input], axis=-1)).to(self.device)
-        qs = self.critic(concat_input).reshape(num_ag, num_en)
+        q_input = self.get_bipartite_state(agent_obs, enemy_obs, num_ag, num_en).to(self.device)
+        qs = self.target_critic(q_input).reshape(num_ag, num_en)
         return qs
 
     def get_action(self, state, explore=True):
@@ -75,16 +68,17 @@ class QmixAgent(BaseAgent):
         enemy_obs = state[self.n_ag:]
         qs = dn(self.get_qs(agent_obs, enemy_obs, self.n_ag, self.n_en))
 
-        if explore:
-            argmax_action = qs.argmax(axis=1)
-            rand_q_val = np.random.random((qs.shape))
-            rand_action = rand_q_val.argmax(axis=1)
-
-            select_random = np.random.random((rand_action.shape)) < self.epsilon
-
-            action = select_random * rand_action + ~select_random * argmax_action
-        else:
-            action = qs.argmax(axis=1)
+        action = self.exploration_using_q(qs, self.epsilon, explore)
+        # if explore:
+        #     argmax_action = qs.argmax(axis=1)
+        #     rand_q_val = np.random.random((qs.shape))
+        #     rand_action = rand_q_val.argmax(axis=1)
+        #
+        #     select_random = np.random.random((rand_action.shape)) < self.epsilon
+        #
+        #     action = select_random * rand_action + ~select_random * argmax_action
+        # else:
+        #     action = qs.argmax(axis=1)
 
         # anneal epsilon
         self.epsilon = max(self.epsilon - self.epsilon_decay, 0.05)
