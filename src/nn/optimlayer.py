@@ -98,12 +98,14 @@ class OptLayer(nn.Module):
 
 
 class MatchingLayer(nn.Module):
-    def __init__(self, n, m, coeff):
+    def __init__(self, n, m, coeff, device='cpu'):
         """
         :param n: num_ag
         :param m: num_target
         """
         super().__init__()
+        self.device = device
+
         self.x = cp.Variable(n * m)
         self.coeff = cp.Parameter(n * m)
         self.A = cp.Parameter((n, n * m))
@@ -117,17 +119,17 @@ class MatchingLayer(nn.Module):
 
         self.optimLayer = OptLayer(variables=variables, parameters=self.parameters, objective=objective,
                                    inequalities=[inequality, ineq_lb, ineq_up], equalities=[equality])
-        A_val = torch.zeros((n, n * m))
+        A_val = torch.zeros((n, n * m)).to(self.device)
         for i in range(n):
             A_val[i, i * m:(i + 1) * m] = 1
         self.A_val = A_val
-        self.b_val = torch.ones(n)
+        self.b_val = torch.ones(n).to(self.device)
 
         # set C value
-        temp = torch.eye(m)
+        temp = torch.eye(m).to(self.device)
         C_value = torch.cat([temp for _ in range(n)], axis=-1)
         self.C_val = C_value
-        self.d_val = torch.ones(m) * coeff
+        self.d_val = torch.ones(m).to(self.device) * coeff
 
     def forward(self, lst_coeff):
         n_batch = len(lst_coeff)
