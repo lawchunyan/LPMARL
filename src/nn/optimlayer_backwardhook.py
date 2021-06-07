@@ -92,7 +92,7 @@ solver = solver(5, 5, 1.5, device)
 #     def forward(self, coeff):
 #         return self.matchinglayer.apply(coeff)
 
-lambda_val = 0.1
+lambda_val = 0.3
 
 from functools import partial
 
@@ -110,10 +110,10 @@ class EdgeMatching_autograd(torch.autograd.Function):
         device = grad_output.device
         grad_output = grad_output.cpu().numpy()
 
-        edge_coest_prime = ctx.edge_cost + 0.1 * grad_output
+        edge_coest_prime = ctx.edge_cost + lambda_val * grad_output
         better_sol = solver.solve(coeff=edge_coest_prime)
 
-        gradient = -(ctx.sol - better_sol) / 0.1
+        gradient = -(ctx.sol - better_sol) / lambda_val
 
         return torch.from_numpy(gradient).to(device)
 

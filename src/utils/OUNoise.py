@@ -7,7 +7,7 @@ class OUNoise:
     """
 
     def __init__(self, action_space, mu=0.0, theta=0.15, max_sigma=0.3, min_sigma=0.3, decay_period=1000,
-                 epsilon_start=1.0, epsilon_decay=0.000005, epsilon_min=0.05):
+                 epsilon_start=1.0, epsilon_decay=0.000005, epsilon_min=0.0):
         self.mu = mu
         self.theta = theta
         self.sigma = max_sigma

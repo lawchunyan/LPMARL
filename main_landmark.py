@@ -9,7 +9,7 @@ TRAIN = True
 use_wandb = True
 
 n_ag = 5
-num_episodes = 10000
+num_episodes = 50000
 coeff = 1.5
 max_t = 50
 
@@ -22,7 +22,7 @@ agent_config = {
     'state_shape': (n_ag),
     "memory_len": 5000,
     "batch_size": 20,
-    "train_start": 50,
+    "train_start": 100,
     "epsilon_start": 1.0,
     "epsilon_decay": 2e-5,
     "mixer": True,
