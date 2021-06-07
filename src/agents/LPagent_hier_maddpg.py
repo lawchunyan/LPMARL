@@ -111,8 +111,8 @@ class DDPGLPAgent(LPAgent):
         actor_inputs = []
         for sample_idx in range(self.batch_size):
             agent_obs, enemy_obs = ag_obs[sample_idx], en_obs[sample_idx]
-            high_action_taken = torch.tensor(a_h[sample_idx])
-            low_action = torch.Tensor(a_l[sample_idx])
+            high_action_taken = torch.tensor(a_h[sample_idx]).to(self.device)
+            low_action = torch.Tensor(a_l[sample_idx]).to(self.device)
 
             r_l = torch.Tensor(r[sample_idx]).to(self.device)
             r_h = torch.Tensor(high_r[sample_idx]).to(self.device)
@@ -136,7 +136,7 @@ class DDPGLPAgent(LPAgent):
             low_qs = self.critic_l(torch.cat([torch.Tensor(agent_obs), torch.Tensor(enemy_obs), low_action], dim=-1))
 
             with torch.no_grad():
-                inp = torch.Tensor(np.concatenate([n_agent_obs, n_enemy_obs[next_high_action]], axis=-1))
+                inp = torch.Tensor(np.concatenate([n_agent_obs, n_enemy_obs[next_high_action]], axis=-1)).to(self.device)
                 next_low_q_val = self.critic_l_target(torch.cat([inp, self.actor_l_target(inp)], dim=-1))
                 low_q_target = r_l + self.gamma * next_low_q_val * (1 - terminated)
                 actor_inputs.append(inp)
