@@ -37,7 +37,7 @@ class RLAgent(BaseAgent):
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, critic_out_dim),
                                              nn.LeakyReLU())
-        self.actor_h = MatchingLayer(n_ag, coeff=coeff)
+        self.actor_h = MatchingLayer(n_ag, coeff=coeff, device=self.device)
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
 

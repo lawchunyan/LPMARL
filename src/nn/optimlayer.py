@@ -71,20 +71,11 @@ class OptLayer(nn.Module):
             J.append(autograd.functional.jacobian(lambda x: vec(*kkt(*mat(x), *params)), y))
 
             def return_grad(grad, b=batch):
-                try:
-                    # out = torch.solve(grad[:, None], J[b].transpose(0, 1))[0][:, 0]
-                    out = torch.mm(torch.inverse(J[b].transpose(0, 1)), grad[:, None])[:, 0]
-                except:
-                    print('here1')
+                out = torch.mm(torch.inverse(J[b].transpose(0, 1)), grad[:, None])[:, 0]
                 return out
 
             # y.register_hook(lambda grad, b=batch: torch.solve(grad[:, None], J[b].transpose(0, 1))[0][:, 0])
             y.register_hook(return_grad)
-
-            try:
-                inv = torch.inverse(J[batch].transpose(0, 1))
-            except:
-                print('here2')
 
             out.append(mat(y)[0])
         out = [torch.stack(o, dim=0) for o in zip(*out)]

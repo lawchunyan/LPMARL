@@ -98,11 +98,13 @@ class OptLayer(nn.Module):
 
 
 class MatchingLayer(nn.Module):
-    def __init__(self, n, coeff=6):
+    def __init__(self, n, coeff=6, device='cpu'):
         """
         :param n: num_ag
         """
         super().__init__()
+        self.device = device
+
         self.x = cp.Variable(n * n)
         self.coeff = cp.Parameter(n * n)
         self.A = cp.Parameter((n, n * n))
@@ -114,7 +116,7 @@ class MatchingLayer(nn.Module):
 
         self.optimLayer = OptLayer(variables=variables, parameters=self.parameters, objective=objective,
                                    inequalities=[ineq_lb, ineq_up, inequality], equalities=[equality1])
-        A_val = torch.zeros((n, n * n))
+        A_val = torch.zeros((n, n * n)).to()
         for i in range(n):
             A_val[i, i * n:(i + 1) * n] = 1
         self.A_val = A_val
