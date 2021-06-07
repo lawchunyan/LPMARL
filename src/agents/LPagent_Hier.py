@@ -123,7 +123,7 @@ class LPAgent(BaseAgent):
             coeff = torch.normal(mean=coeff, std=self.std)
             self.std = max(self.std - self.epsilon_decay, 0.05)
 
-        solution = self.actor_h([coeff.squeeze()])
+        solution = self.actor_h([coeff.squeeze()]).to(self.device)
 
         # Sample from policy
         policy = solution.reshape(num_ag, num_en)  # to prevent - 0
