@@ -131,7 +131,7 @@ class LPAgent(BaseAgent):
         policy = policy / policy.sum(1, keepdims=True)
 
         if h_action is not None:
-            chosen_h_action = h_action
+            chosen_h_action = h_action.to(self.device)
         else:
             chosen_h_action = torch.distributions.categorical.Categorical(policy).sample().to(self.device)
 
