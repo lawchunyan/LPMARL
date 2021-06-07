@@ -101,8 +101,8 @@ class DDPGLPAgent(LPAgent):
             for s, l in zip(sample, lst):
                 l.append(s)
 
-        ag_obs = torch.Tensor(ag_obs).to(self.device)
-        en_obs = torch.Tensor(en_obs).to(self.device)
+        # ag_obs = torch.Tensor(ag_obs).to(self.device)
+        # en_obs = torch.Tensor(en_obs).to(self.device)
 
         loss_critic_h = []
         loss_actor_h = []
@@ -133,10 +133,12 @@ class DDPGLPAgent(LPAgent):
             high_q_target = r_h + self.gamma * next_high_q_val.detach() * (1 - terminated)
 
             # low q update
-            low_qs = self.critic_l(torch.cat([torch.Tensor(agent_obs), torch.Tensor(enemy_obs), low_action], dim=-1))
+            low_qs = self.critic_l(torch.cat(
+                [torch.Tensor(agent_obs).to(self.device), torch.Tensor(enemy_obs).to(self.device), low_action], dim=-1))
 
             with torch.no_grad():
-                inp = torch.Tensor(np.concatenate([n_agent_obs, n_enemy_obs[next_high_action]], axis=-1)).to(self.device)
+                inp = torch.Tensor(np.concatenate([n_agent_obs, n_enemy_obs[next_high_action]], axis=-1)).to(
+                    self.device)
                 next_low_q_val = self.critic_l_target(torch.cat([inp, self.actor_l_target(inp)], dim=-1))
                 low_q_target = r_l + self.gamma * next_low_q_val * (1 - terminated)
                 actor_inputs.append(inp)
