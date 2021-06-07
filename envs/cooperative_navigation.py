@@ -83,11 +83,13 @@ class Scenario(BaseScenario):
         rew = 0
         min_dist = 5000
         for l in world.landmarks:
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            rew -= min(dists)
-            min_dist = min(min_dist, np.sqrt(np.sum(np.square(agent.state.p_pos- l.state.p_pos))))
+            # dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
+            # rew -= min(dists)
+            min_dist = min(min_dist, np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))))
 
-        if min_dist < 0.3:
+        rew -= min_dist
+
+        if min_dist < 0.5:
             rew += 10
             world.num_hit += 1
 

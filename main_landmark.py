@@ -12,7 +12,7 @@ TRAIN = True
 use_wandb = True
 
 n_ag = 5
-num_episodes = 5000
+num_episodes = 10000
 coeff = 1.5
 max_t = 50
 
@@ -23,19 +23,19 @@ agent_config = {
     "action_dim": 5,
     "en_feat_dim": 2,
     'state_shape': (n_ag),
-    "memory_len": 100,
+    "memory_len": 5000,
     "batch_size": 20,
-    "train_start": 20,
+    "train_start": 50,
     "epsilon_start": 1.0,
     "epsilon_decay": 2e-5,
     "mixer": True,
-    "gamma": 0.99,
+    "gamma": 0.95,
     "hidden_dim": 32,
     "loss_ftn": torch.nn.MSELoss(),
     "lr": 5e-4,
     'memory_type': 'ep',
-    'target_tau': 0.5,
-    'target_update_interval': 200,
+    'target_tau': 0.005,
+    'target_update_interval': 10,
     'coeff': coeff,
     "sc2": False
 }
@@ -101,8 +101,11 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    if e % 500 == 0 and TRAIN:
+    if e % 200 == 0 or env.world.num_hit > 30:
         agent.save(curr_dir, e)
+
+    for n in agent.noise:
+        n.t = 0
 
 if TRAIN:
     agent.save(curr_dir, num_episodes)
