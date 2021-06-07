@@ -35,7 +35,7 @@ class OptLayer(nn.Module):
             params = [p[batch] for p in batch_params]
             with torch.no_grad():
                 for i, p in enumerate(self.parameters):
-                    p.value = params[i].double().numpy()
+                    p.value = params[i].cpu().double().numpy()
                 self.problem.solve(**self.cvxpy_opts)
                 z = [torch.tensor(v.value).type_as(params[0]) for v in self.variables]
                 lam = [torch.tensor(c.dual_value).type_as(params[0]) for c in self.cp_inequalities]
