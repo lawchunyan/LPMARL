@@ -184,9 +184,9 @@ class LPAgent(BaseAgent):
 
         for sample_idx in range(self.batch_size):
             agent_obs, enemy_obs = ag_obs[sample_idx], en_obs[sample_idx]
-            high_action_taken = a_h[sample_idx]
-            low_action = a_l[sample_idx]
-            next_avail_action = next_avail_actions[sample_idx]
+            high_action_taken = a_h[sample_idx].to(self.device)
+            low_action = a_l[sample_idx].to(self.device)
+            next_avail_action = next_avail_actions[sample_idx].to(self.device)
             r_l = torch.Tensor(r[sample_idx]).to(self.device)
             r_h = torch.Tensor(high_r[sample_idx]).to(self.device)
             terminated = torch.Tensor(t[sample_idx]).to(self.device)
