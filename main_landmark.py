@@ -23,17 +23,17 @@ agent_config = {
     "action_dim": 5,
     "en_feat_dim": 2,
     'state_shape': (n_ag),
-    "memory_len": 300,
-    "batch_size": 50,
-    "train_start": 100,
+    "memory_len": 100,
+    "batch_size": 20,
+    "train_start": 20,
     "epsilon_start": 1.0,
-    "epsilon_decay": 2e-4,
+    "epsilon_decay": 2e-5,
     "mixer": True,
     "gamma": 0.99,
     "hidden_dim": 32,
     "loss_ftn": torch.nn.MSELoss(),
     "lr": 5e-4,
-    'memory_type': 'sample',
+    'memory_type': 'ep',
     'target_tau': 0.5,
     'target_update_interval': 200,
     'coeff': coeff,
@@ -43,6 +43,8 @@ agent_config = {
 env = make_env(n_ag, n_ag)
 agent = DDPGLPAgent(**agent_config)
 agent_config['name'] = agent.name
+print(agent.device)
+agent.to(agent.device)
 
 if TRAIN and use_wandb:
     exp_name = date.today().strftime("%Y%m%d") + "_navigation_" + agent_config['name']
@@ -99,7 +101,7 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    if e % 1000 == 0 and TRAIN:
+    if e % 500 == 0 and TRAIN:
         agent.save(curr_dir, e)
 
 if TRAIN:

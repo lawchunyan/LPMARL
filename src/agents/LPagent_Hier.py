@@ -119,9 +119,9 @@ class LPAgent(BaseAgent):
     def get_high_action(self, agent_obs, enemy_obs, num_ag, num_en, explore=False, h_action=None):
         coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)
 
-        # coeff = coeff_bef.reshape(num_ag, num_en)
         if explore:
             coeff = torch.normal(mean=coeff, std=self.std)
+            self.std = max(self.std - self.epsilon_decay, 0.05)
 
         solution = self.actor_h([coeff.squeeze()])
 

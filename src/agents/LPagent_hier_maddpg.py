@@ -45,12 +45,13 @@ class DDPGLPAgent(LPAgent):
         self.actor_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                      nn.LeakyReLU(),
                                      nn.Linear(hidden_dim, critic_l_out_dim),
-                                     nn.Tanh()
+                                     # nn.Tanh()
                                      )
         self.actor_l_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                             nn.LeakyReLU(),
                                             nn.Linear(hidden_dim, critic_l_out_dim),
-                                            nn.Tanh())
+                                            # nn.Tanh()
+                                            )
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters())
@@ -68,7 +69,7 @@ class DDPGLPAgent(LPAgent):
 
     def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True):
         high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-                                                                             self.n_en, explore=False)
+                                                                             self.n_en, explore=explore)
         low_action = self.get_low_action(agent_obs, high_feat, explore=explore)
         out_action = low_action
 
