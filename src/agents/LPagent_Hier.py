@@ -41,7 +41,7 @@ class LPAgent(BaseAgent):
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              nn.LeakyReLU())
-        self.actor_h = MatchingLayer(n_ag, n_en, coeff, self.device)
+        # self.actor_h = MatchingLayer(n_ag, n_en, coeff, self.device)
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, critic_l_out_dim),

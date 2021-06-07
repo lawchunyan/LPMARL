@@ -1,10 +1,7 @@
 import torch
 import wandb
 import os
-import numpy as np
 from datetime import date
-from src.utils.action_utils import change_to_one_hot
-# from src.agents.LPagent_Hier import LPAgent
 from src.agents.LPagent_hier_maddpg import DDPGLPAgent
 from envs.cooperative_navigation import make_env, get_landmark_state
 
@@ -63,6 +60,7 @@ if TRAIN and use_wandb:
 
     exp_conf = {'directory': curr_dir}
     wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
+    wandb.watch(agent)
 
 # agent.load_state_dict(torch.load('result/20210601_navigation_LP_2/4000.th'))
 

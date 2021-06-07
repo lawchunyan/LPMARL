@@ -62,7 +62,7 @@ class DDPGLPAgent(LPAgent):
         epsilon_decay = kwargs['epsilon_decay']
         lr = kwargs['lr']
 
-        self.noise = OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay)
+        self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in range(kwargs['n_ag'])]
 
         self.critic_optimizer = Adam(list(self.critic_l.parameters()) + list(self.critic_h.parameters()), lr=lr)
         self.actor_optimizer = Adam(self.actor_l.parameters(), lr=lr)
@@ -76,10 +76,14 @@ class DDPGLPAgent(LPAgent):
         return out_action, dn(high_action), low_action
 
     def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
-        low_action = self.actor_l(torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device))
-        # if explore:
-        #     low_action = self.noise.get_action(dn(low_action))
-        #     self.epsilon = self.noise.epsilon
+        low_action = dn(self.actor_l(torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)))
+        if explore:
+            l_action = []
+            for i in range(self.n_ag):
+                low_action = self.noise[i].get_action(low_action[i])
+                l_action.append(low_action)
+            self.epsilon = self.noise[0].epsilon
+            low_action = np.array(l_action)
         return low_action
 
     def fit(self, e):

@@ -5,7 +5,7 @@ import wandb
 
 from torch.optim import Adam
 from collections import namedtuple
-from src.nn.optimlayer import MatchingLayer
+from src.nn.optimlayer_backwardhook import EdgeMatching_autograd
 from src.agents.LPagent_Hier import LPAgent
 from src.utils.torch_util import dn
 from src.utils.OUNoise import OUNoise
@@ -67,6 +67,8 @@ class DDPGLPAgent(LPAgent):
         self.critic_optimizer = Adam(list(self.critic_l.parameters()) + list(self.critic_h.parameters()), lr=lr)
         self.actor_optimizer = Adam(self.actor_l.parameters(), lr=lr)
 
+        self.actor_h = EdgeMatching_autograd()
+
     def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True):
         high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                              self.n_en, explore=explore)
@@ -85,6 +87,30 @@ class DDPGLPAgent(LPAgent):
             self.epsilon = self.noise[0].epsilon
             low_action = np.array(l_action)
         return low_action
+
+    def get_high_action(self, agent_obs, enemy_obs, num_ag, num_en, explore=False, h_action=None):
+        coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)
+
+        if explore:
+            coeff = torch.normal(mean=coeff, std=self.std)
+            self.std = max(self.std - self.epsilon_decay, 0.05)
+
+        solution = self.actor_h.apply(coeff.squeeze()).to(self.device)
+
+        # Sample from policy
+        policy = solution.reshape(num_ag, num_en)  # to prevent - 0
+        policy += 1e-4
+        policy = policy / policy.sum(1, keepdims=True)
+
+        if h_action is not None:
+            chosen_h_action = h_action.to(self.device)
+        else:
+            chosen_h_action = torch.distributions.categorical.Categorical(policy).sample().to(self.device)
+
+        chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
+        chosen_h_en_feat = enemy_obs[chosen_h_action.tolist()]
+
+        return chosen_h_action, chosen_h_en_feat, chosen_action_logit_h
 
     def fit(self, e):
         samples = self.memory.sample(self.batch_size)
