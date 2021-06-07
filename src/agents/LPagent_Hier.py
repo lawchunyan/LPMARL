@@ -133,7 +133,7 @@ class LPAgent(BaseAgent):
         if h_action is not None:
             chosen_h_action = h_action
         else:
-            chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
+            chosen_h_action = torch.distributions.categorical.Categorical(policy).sample().to(self.device)
 
         chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
         chosen_h_en_feat = enemy_obs[chosen_h_action.tolist()]
