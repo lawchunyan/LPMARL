@@ -196,7 +196,8 @@ class LPAgent(BaseAgent):
                                                             num_ag=self.n_ag, num_en=self.n_en)
 
             coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag=self.n_ag, num_en=self.n_en)
-            high_qs = coeff.reshape(self.n_ag, self.n_en).gather(dim=1, index=high_action_taken.reshape(-1, 1))
+            high_qs = coeff.reshape(self.n_ag, self.n_en).gather(dim=1, index=high_action_taken.to(self.device)
+                                                                 .reshape(-1, 1))
 
             n_agent_obs, n_enemy_obs = n_ag_obs[sample_idx], n_en_obs[sample_idx]
             next_high_q_val, next_high_action = self.get_high_qs(n_agent_obs, n_enemy_obs, self.n_ag,
