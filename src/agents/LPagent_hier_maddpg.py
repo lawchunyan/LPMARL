@@ -101,8 +101,8 @@ class DDPGLPAgent(LPAgent):
             for s, l in zip(sample, lst):
                 l.append(s)
 
-        ag_obs = torch.Tensor(ag_obs)
-        en_obs = torch.Tensor(en_obs)
+        ag_obs = torch.Tensor(ag_obs).to(self.device)
+        en_obs = torch.Tensor(en_obs).to(self.device)
 
         loss_critic_h = []
         loss_actor_h = []
