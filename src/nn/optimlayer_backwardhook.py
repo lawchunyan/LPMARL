@@ -83,7 +83,6 @@ class solver():
 
 solver = solver(5, 5, 1.5, device)
 
-
 # class EdgeMatching(nn.Module):
 #     def __init__(self):
 #         super(EdgeMatching, self).__init__()
@@ -92,16 +91,15 @@ solver = solver(5, 5, 1.5, device)
 #     def forward(self, coeff):
 #         return self.matchinglayer.apply(coeff)
 
-lambda_val = 0.3
+lambda_val = 10
 
-from functools import partial
 
 class EdgeMatching_autograd(torch.autograd.Function):
     @staticmethod
     def forward(ctx, edge_cost):
         ctx.edge_cost = edge_cost.detach().cpu().numpy()
-        ctx.solver = solver
-        ctx.sol = ctx.solver.solve(ctx.edge_cost)
+        # ctx.solver = solver
+        ctx.sol = solver.solve(ctx.edge_cost)
         return torch.from_numpy(ctx.sol).float().to(edge_cost.device)
 
     @staticmethod
@@ -118,10 +116,8 @@ class EdgeMatching_autograd(torch.autograd.Function):
         return torch.from_numpy(gradient).to(device)
 
 
-
 if __name__ == '__main__':
     m = EdgeMatching_autograd()
     input = torch.rand(25, requires_grad=True)
     out = m.apply(input)
     out.sum().backward()
-

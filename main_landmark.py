@@ -24,7 +24,7 @@ agent_config = {
     "batch_size": 20,
     "train_start": 100,
     "epsilon_start": 1.0,
-    "epsilon_decay": 2e-5,
+    "epsilon_decay": 2e-6,
     "mixer": True,
     "gamma": 0.95,
     "hidden_dim": 32,
@@ -99,7 +99,7 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    if e % 200 == 0 or env.world.num_hit > 30:
+    if e % 200 == 0 or (env.world.num_hit > 30 and e > 9000):
         agent.save(curr_dir, e)
 
     for n in agent.noise:

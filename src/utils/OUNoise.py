@@ -40,7 +40,7 @@ class OUNoise:
         self.epsilon = max(self.epsilon, self.epsilon_min)
 
         self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, self.t / self.decay_period)
-        return np.clip(action + ou_state, -1.0, 1.0)
+        return np.clip(action * (1 - self.epsilon) + ou_state, -1.0, 1.0)
 
 
 if __name__ == '__main__':
