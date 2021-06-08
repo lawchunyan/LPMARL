@@ -44,7 +44,8 @@ class Scenario(BaseScenario):
 
         theta = 2 * math.pi / len(world.landmarks)
         for i, agent in enumerate(world.agents):
-            agent.state.p_pos = np.array([math.cos(theta * i) * 0.3, math.sin(theta * i) * 0.3])
+            agent.state.p_pos = np.random.uniform(-0.9, 0.9, 2)
+            # agent.state.p_pos = np.array([math.cos(theta * i) * 0.3, math.sin(theta * i) * 0.3])
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
 
