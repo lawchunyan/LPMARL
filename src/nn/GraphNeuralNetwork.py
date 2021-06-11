@@ -5,10 +5,11 @@ import torch.nn as nn
 from functools import partial
 from src.nn.MultiLayeredPerceptron import MultiLayeredPerceptron as MLP
 from src.utils.graph_utils import get_filtered_node_idx, get_filtered_edge_idx
+from src.utils.torch_util import dn
 
 
 class GraphNeuralNet(nn.Module):
-    def __init__(self, in_node_dim, out_node_dim, hidden_dims=[32, 32], edge_types=[0, 1], node_type=0):
+    def __init__(self, in_node_dim, out_node_dim, hidden_dims=[64], edge_types=[0, 1, 2], node_types=[0, 1]):
         super(GraphNeuralNet, self).__init__()
 
         ins = [in_node_dim] + hidden_dims
@@ -17,7 +18,7 @@ class GraphNeuralNet(nn.Module):
         self.layers = nn.ModuleList()
 
         for _in, _ou in zip(ins, outs):
-            self.layers.append(GraphNeuralNetLayer(_in, _ou, edge_types=edge_types, node_type=node_type))
+            self.layers.append(GraphNeuralNetLayer(_in, _ou, edge_types=edge_types, node_types=node_types))
 
     def forward(self, g, nf):
         for l in self.layers:
@@ -26,7 +27,7 @@ class GraphNeuralNet(nn.Module):
 
 
 class GraphNeuralNetLayer(nn.Module):
-    def __init__(self, in_node_dim, out_node_dim, hidden_dim=32, edge_types=[0, 1], node_type=0):
+    def __init__(self, in_node_dim, out_node_dim, hidden_dim=32, edge_types=[0, 1, 2], node_types=[0, 1]):
         super(GraphNeuralNetLayer, self).__init__()
 
         self.edge_update_func = nn.ModuleDict()
@@ -35,10 +36,12 @@ class GraphNeuralNetLayer(nn.Module):
         for e in edge_types:
             self.edge_update_func["{}".format(e)] = MLP(in_node_dim * 2, hidden_dim)
 
-        self.node_update_func = MLP(hidden_dim * len(edge_types) + in_node_dim, out_node_dim)
+        for n in node_types:
+            self.node_update_func["{}".format(n)] = MLP(hidden_dim * len(edge_types), out_node_dim)
+            # self.node_update_func = MLP(hidden_dim * len(edge_types), out_node_dim)
 
         self.edge_types = edge_types
-        self.node_type = node_type
+        self.node_types = node_types
 
     def forward(self, g: dgl.DGLGraph, nf):
         g.ndata['nf'] = nf
@@ -49,10 +52,18 @@ class GraphNeuralNetLayer(nn.Module):
             reduce_func = partial(self.reduce_func, etype=e)
             g.send_and_recv(target_edges, message_func, reduce_func)
 
-        target_nodes = get_filtered_node_idx(g, ntype_idx=self.node_type)
-        g.apply_nodes(self.apply_node_func, target_nodes)
+        for n in self.node_types:
+            apply_func = partial(self.apply_node_func, ntype=n)
+            target_nodes = get_filtered_node_idx(g, ntype_idx=n)
+            g.apply_nodes(apply_func, target_nodes)
 
         updated_nf = g.ndata.pop('updated_nf')
+
+        g.ndata.pop('nf')
+        g.ndata.pop('message_0')
+        g.ndata.pop('message_1')
+        g.ndata.pop('message_2')
+
         return updated_nf
 
     def message_func(self, edges, etype):
@@ -68,14 +79,14 @@ class GraphNeuralNetLayer(nn.Module):
         reduced_message = messages.mean(1)
         return {'message_{}'.format(etype): reduced_message}
 
-    def apply_node_func(self, nodes):
+    def apply_node_func(self, nodes, ntype):
         nf_update_inputs = []
         for e in self.edge_types:
             msg = nodes.data['message_{}'.format(e)]
             nf_update_inputs.append(msg)
-        nf_update_inputs.append(nodes.data['nf'])
+        # nf_update_inputs.append(nodes.data['nf'])
         nf_update_input = torch.cat(nf_update_inputs, dim=-1)
-        updated_nf = self.node_update_func(nf_update_input)
+        updated_nf = self.node_update_func["{}".format(ntype)](nf_update_input)
 
         return {'updated_nf': updated_nf}
 

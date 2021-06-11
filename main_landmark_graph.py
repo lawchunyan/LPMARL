@@ -3,7 +3,7 @@ import wandb
 import os
 
 from datetime import date
-from src.agents.LPagent_hier_maddpg import DDPGLPAgent
+from src.agents_graph.LPagent_hier_maddpg import DDPGLPAgent
 from src.utils.make_graph import make_graph
 from envs.cooperative_navigation import make_env, get_landmark_state
 
@@ -72,19 +72,18 @@ for e in range(num_episodes):
     landmark_state = get_landmark_state(env)
     ep_len = 0
     std_action = 0
+    g = make_graph(n_ag, n_ag)
 
     while True:
         ep_len += 1
-        state = make_graph(state, landmark_state)
-        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True)
-        # onehot_action = change_to_one_hot(action)
+        high_action, low_action = agent.get_action(g, state, landmark_state, explore=True)
 
-        std_action += action.std(axis=0)
-        next_state, reward, terminated, _ = env.step(action)
-        next_state = make_graph(next_state, landmark_state)
+        std_action += low_action.std(axis=0)
+        next_state, reward, terminated, _ = env.step(low_action)
+        # ng = make_graph(next_state, landmark_state)
         episode_reward += sum(reward)
 
-        agent.push(state, landmark_state, high_action, low_action, reward, next_state, landmark_state, terminated, 0,
+        agent.push(g, state, landmark_state, high_action, low_action, reward, next_state, landmark_state, terminated, 0,
                    reward)
         state = next_state
 
