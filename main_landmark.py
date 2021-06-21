@@ -46,7 +46,7 @@ print(agent.device)
 agent.to(agent.device)
 
 if TRAIN and use_wandb:
-    exp_name = date.today().strftime("%Y%m%d") + "_navigation_" + agent_config['name']
+    exp_name = date.today().strftime("%Y%m%d") + "_navigation_" + agent_config['name'] + agent.device
     dirName = 'result/{}'.format(exp_name)
     if os.path.exists(dirName):
         i = 0
