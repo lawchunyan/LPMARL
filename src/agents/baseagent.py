@@ -8,7 +8,7 @@ from datetime import date
 
 class BaseAgent(nn.Module):
     def __init__(self, state_dim, action_dim, memory_len, batch_size, train_start, gamma=0.99, memory_type="sample",
-                 name=None):
+                 name=None, **kwargs):
         super(BaseAgent, self).__init__()
 
         if memory_type == 'sample':
