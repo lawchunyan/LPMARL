@@ -91,7 +91,7 @@ class Scenario(BaseScenario):
         rew -= min_dist
 
         if min_dist < 0.5:
-            rew += 10
+            rew += 50
             world.num_hit += 1
 
         # rew -= min_dist
