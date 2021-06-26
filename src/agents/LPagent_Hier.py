@@ -41,7 +41,7 @@ class LPAgent(BaseAgent):
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              nn.LeakyReLU())
-        self.actor_h = MatchingLayer(n_ag, n_en, coeff, self.device)
+        # self.actor_h = MatchingLayer(n_ag, n_en, coeff, self.device)
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, critic_l_out_dim),
@@ -236,7 +236,7 @@ class LPAgent(BaseAgent):
             loss_critic_h.append(self.loss_ftn(high_qs, high_q_target))
             loss_critic_l.append(self.loss_ftn(low_qs, low_q_target))
 
-            loss_actor_h.append(-h_logit * low_qs)
+            loss_actor_h.append(-h_logit * high_qs)
 
             # low_action = self.get_low_action(agent_obs, high_action, high_en_feat, avail_action)
         loss_c_h = torch.stack(loss_critic_h).mean()

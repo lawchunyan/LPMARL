@@ -7,7 +7,7 @@ from src.agents.LPagent_hier_maddpg import DDPGLPAgent
 from src.utils.make_graph import make_graph
 from envs.cooperative_navigation import make_env, get_landmark_state
 
-TRAIN = False
+TRAIN = True
 use_wandb = False
 
 n_ag = 5
@@ -75,13 +75,12 @@ for e in range(num_episodes):
 
     while True:
         ep_len += 1
-        state = make_graph(state, landmark_state)
         action, high_action, low_action = agent.get_action(state, landmark_state, explore=True)
         # onehot_action = change_to_one_hot(action)
 
         std_action += action.std(axis=0)
         next_state, reward, terminated, _ = env.step(action)
-        next_state = make_graph(next_state, landmark_state)
+        # next_state = make_graph(next_state, landmark_state)
         episode_reward += sum(reward)
 
         agent.push(state, landmark_state, high_action, low_action, reward, next_state, landmark_state, terminated, 0,
@@ -103,13 +102,13 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    if e % 200 == 0 or (env.world.num_hit > 30 and e > 9000):
+    if e % 500 == 0:
         agent.save(curr_dir, e)
 
     for n in agent.noise:
         n.t = 0
 
-if TRAIN:
-    agent.save(curr_dir, num_episodes)
+# if TRAIN:
+#     agent.save(curr_dir, num_episodes)
 
 env.close()
