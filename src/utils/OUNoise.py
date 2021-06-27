@@ -25,6 +25,7 @@ class OUNoise:
 
     def reset(self):
         self.state = np.ones(self.action_dim) * self.mu
+        self.t = 0
 
     def evolve_state(self):
         x = self.state
@@ -34,13 +35,16 @@ class OUNoise:
 
     def get_action(self, action):
         self.t += 1
-        ou_state = self.evolve_state() * self.epsilon
+        ou_state = self.evolve_state()
 
         self.epsilon -= self.epsilon_decay
         self.epsilon = max(self.epsilon, self.epsilon_min)
 
+        if self.epsilon > 0.8:
+            return np.clip(ou_state, -1, 1)
+
         self.sigma = self.max_sigma - (self.max_sigma - self.min_sigma) * min(1.0, self.t / self.decay_period)
-        return np.clip(action * (1 - self.epsilon) + ou_state, -1.0, 1.0)
+        return np.clip(action * (1 - self.epsilon) + ou_state * self.epsilon, -1.0, 1.0)
 
 
 if __name__ == '__main__':

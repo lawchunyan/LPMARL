@@ -26,7 +26,7 @@ agent_config = {
     "batch_size": 20,
     "train_start": 100,
     "epsilon_start": 1.0,
-    "epsilon_decay": 2e-6,
+    "epsilon_decay": 1e-6,
     "mixer": True,
     "gamma": 0.95,
     "hidden_dim": 32,
@@ -106,7 +106,7 @@ for e in range(num_episodes):
         agent.save(curr_dir, e)
 
     for n in agent.noise:
-        n.t = 0
+        n.reset()
 
 # if TRAIN:
 #     agent.save(curr_dir, num_episodes)
