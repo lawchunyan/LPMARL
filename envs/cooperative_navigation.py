@@ -21,7 +21,7 @@ class Scenario(BaseScenario):
             agent.name = 'agent %d' % i
             agent.collide = True
             agent.silent = True
-            agent.size = 0.2
+            agent.size = 0.3
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
@@ -91,7 +91,7 @@ class Scenario(BaseScenario):
         rew -= min_dist
 
         if min_dist < 0.5:
-            rew += 50
+            rew += 10
             world.num_hit += 1
 
         # rew -= min_dist
@@ -99,7 +99,7 @@ class Scenario(BaseScenario):
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent) and a != agent:
-                    rew -= 1
+                    rew -= 10
         return rew
 
     def observation(self, agent, world):
