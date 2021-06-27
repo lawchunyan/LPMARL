@@ -8,7 +8,7 @@ from src.utils.make_graph import make_graph
 from envs.cooperative_navigation import make_env, get_landmark_state
 
 TRAIN = True
-use_wandb = False
+use_wandb = True
 
 n_ag = 5
 num_episodes = 50000
@@ -75,7 +75,13 @@ for e in range(num_episodes):
 
     while True:
         ep_len += 1
-        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True)
+        if ep_len == 1:
+            get_high_action = True
+        else:
+            get_high_action = False
+
+        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True,
+                                                           get_high_action=get_high_action)
         # onehot_action = change_to_one_hot(action)
 
         std_action += action.std(axis=0)

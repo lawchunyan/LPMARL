@@ -62,16 +62,23 @@ class DDPGLPAgent(LPAgent):
         epsilon_decay = kwargs['epsilon_decay']
         lr = kwargs['lr']
 
-        self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in range(kwargs['n_ag'])]
+        self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in
+                      range(kwargs['n_ag'])]
 
         self.critic_optimizer = Adam(list(self.critic_l.parameters()) + list(self.critic_h.parameters()), lr=lr)
         self.actor_optimizer = Adam(self.actor_l.parameters(), lr=lr)
 
         self.actor_h = EdgeMatching_autograd()
 
-    def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True):
-        high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-                                                                             self.n_en, explore=explore)
+    def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True, get_high_action=True):
+        if get_high_action:
+            high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
+                                                                                 self.n_en, explore=explore)
+            self.high_action = high_action
+        else:
+            high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
+                                                                                 self.n_en, explore=explore,
+                                                                                 h_action=self.high_action)
         low_action = self.get_low_action(agent_obs, high_feat, explore=explore)
         out_action = low_action
 
@@ -202,7 +209,7 @@ class DDPGLPAgent(LPAgent):
                     'high_weight': self.high_weight
                     }
 
-        self.high_weight = min(0.5, self.high_weight + 4e-4)
+        self.high_weight = min(0.7, self.high_weight + 1e-5)
 
         # gradient on high / low action
         if e % self.target_update_interval == 0:
