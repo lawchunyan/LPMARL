@@ -57,6 +57,8 @@ class IndependentDDPGAgent(BaseAgent):
         if explore:
             action = np.array([noise.get_action(action[i]) for i, noise in enumerate(self.noise)])
 
+        self.epsilon = self.noise[0].epsilon
+
         return action, None, None
 
     def fit(self, e):
