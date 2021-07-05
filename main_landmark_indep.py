@@ -32,7 +32,7 @@ agent_config = {
     "hidden_dim": 32,
     "loss_ftn": torch.nn.MSELoss(),
     "lr": 5e-4,
-    'memory_type': 'sample',
+    'memory_type': 'ep',
     'target_tau': 0.005,
     'target_update_interval': 10,
     'coeff': coeff,
