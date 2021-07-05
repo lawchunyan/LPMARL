@@ -24,12 +24,15 @@ class IndependentDDPGAgent(BaseAgent):
         self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in
                       range(n_ag)]
 
-        self.actor = [MLP(state_dim + en_feat_dim, action_dim, out_actiation=nn.Tanh()) for _ in range(n_ag)]
-        self.actor_target = [MLP(state_dim + en_feat_dim, action_dim, out_actiation=nn.Tanh()) for _ in range(n_ag)]
+        self.actor = nn.ModuleList(
+            [MLP(state_dim + en_feat_dim, action_dim, out_actiation=nn.Tanh()) for _ in range(n_ag)])
+        self.actor_target = nn.ModuleList(
+            [MLP(state_dim + en_feat_dim, action_dim, out_actiation=nn.Tanh()) for _ in range(n_ag)])
 
-        self.critic = [MLP(state_dim + en_feat_dim + action_dim, 1, out_actiation=nn.Identity()) for _ in range(n_ag)]
-        self.critic_target = [MLP(state_dim + en_feat_dim + action_dim, 1, out_actiation=nn.Identity()) for _ in
-                              range(n_ag)]
+        self.critic = nn.ModuleList(
+            [MLP(state_dim + en_feat_dim + action_dim, 1, out_actiation=nn.Identity()) for _ in range(n_ag)])
+        self.critic_target = nn.ModuleList(
+            [MLP(state_dim + en_feat_dim + action_dim, 1, out_actiation=nn.Identity()) for _ in range(n_ag)])
 
         for s, t in zip(self.critic, self.critic_target):
             self.update_target_network(t.parameters(), s.parameters(), tau=1.0)
