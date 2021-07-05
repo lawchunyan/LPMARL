@@ -32,7 +32,7 @@ agent_config = {
     "hidden_dim": 32,
     "loss_ftn": torch.nn.MSELoss(),
     "lr": 5e-4,
-    'memory_type': 'ep',
+    'memory_type': 'sample',
     'target_tau': 0.005,
     'target_update_interval': 10,
     'coeff': coeff,
@@ -76,7 +76,11 @@ for e in range(num_episodes):
 
     while True:
         ep_len += 1
-        high_action, low_action = agent.get_action(g, state, landmark_state, explore=True)
+        if ep_len == 1:
+            get_high_action = True
+        else:
+            get_high_action = False
+        high_action, low_action = agent.get_action(g, state, landmark_state, explore=True, get_high_action=get_high_action)
 
         std_action += low_action.std(axis=0)
         next_state, reward, terminated, _ = env.step(low_action)
@@ -102,8 +106,8 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    if e % 200 == 0 or (env.world.num_hit > 30 and e > 9000):
-        agent.save(curr_dir, e)
+    # if e % 200 == 0 or (env.world.num_hit > 30 and e > 9000):
+    #     agent.save(curr_dir, e)
 
     for n in agent.noise:
         n.t = 0
