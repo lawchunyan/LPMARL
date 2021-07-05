@@ -3,7 +3,7 @@ import wandb
 import os
 
 from datetime import date
-from src.agents.LPagent_hier_maddpg import DDPGLPAgent
+from src.agents.independent_ag import IndependentDDPGAgent
 from src.utils.make_graph import make_graph
 from envs.cooperative_navigation import make_env, get_landmark_state
 
@@ -23,8 +23,8 @@ agent_config = {
     "en_feat_dim": 2,
     'state_shape': (n_ag),
     "memory_len": 5000,
-    "batch_size": 20,
-    "train_start": 100,
+    "batch_size": 1000,
+    "train_start": 1000,
     "epsilon_start": 1.0,
     "epsilon_decay": 1e-6,
     "mixer": True,
@@ -32,7 +32,7 @@ agent_config = {
     "hidden_dim": 32,
     "loss_ftn": torch.nn.MSELoss(),
     "lr": 5e-4,
-    'memory_type': 'ep',
+    'memory_type': 'sample',
     'target_tau': 0.005,
     'target_update_interval': 10,
     'coeff': coeff,
@@ -40,7 +40,7 @@ agent_config = {
 }
 
 env = make_env(n_ag, n_ag)
-agent = DDPGLPAgent(**agent_config)
+agent = IndependentDDPGAgent(**agent_config)
 agent_config['name'] = agent.name
 print(agent.device)
 agent.to(agent.device)
@@ -89,8 +89,7 @@ for e in range(num_episodes):
         # next_state = make_graph(next_state, landmark_state)
         episode_reward += sum(reward)
 
-        agent.push(state, landmark_state, high_action, low_action, reward, next_state, landmark_state, terminated, 0,
-                   reward)
+        agent.push(state, landmark_state, action, reward, next_state, landmark_state)
         state = next_state
 
         if ep_len > max_t:
@@ -108,7 +107,7 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    if e % 500 == 0:
+    if e % 1000 == 0 and TRAIN:
         agent.save(curr_dir, e)
 
     for n in agent.noise:
