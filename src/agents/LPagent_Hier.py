@@ -5,7 +5,8 @@ import wandb
 
 from torch.optim import Adam
 from collections import namedtuple
-from src.nn.optimlayer import MatchingLayer
+# from src.nn.optimlayer import MatchingLayer
+from src.nn.optimlayer_backwardhook import EdgeMatching_autograd
 from src.agents.baseagent import BaseAgent
 from src.utils.torch_util import dn
 
@@ -41,7 +42,7 @@ class LPAgent(BaseAgent):
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              nn.LeakyReLU())
-        # self.actor_h = MatchingLayer(n_ag, n_en, coeff, self.device)
+        self.actor_h = EdgeMatching_autograd()
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, critic_l_out_dim),
@@ -123,7 +124,8 @@ class LPAgent(BaseAgent):
             coeff = torch.normal(mean=coeff, std=self.std)
             self.std = max(self.std - self.epsilon_decay, 0.05)
 
-        solution = self.actor_h([coeff.squeeze()]).to(self.device)
+        # solution = self.actor_h([coeff.squeeze()]).to(self.device)
+        solution = self.actor_h.apply(coeff.squeeze()).to(self.device)
 
         # Sample from policy
         policy = solution.reshape(num_ag, num_en)  # to prevent - 0
@@ -185,11 +187,13 @@ class LPAgent(BaseAgent):
         for sample_idx in range(self.batch_size):
             agent_obs, enemy_obs = ag_obs[sample_idx], en_obs[sample_idx]
             high_action_taken = a_h[sample_idx].to(self.device)
-            low_action = a_l[sample_idx].to(self.device)
-            next_avail_action = next_avail_actions[sample_idx].to(self.device)
-            r_l = torch.Tensor(r[sample_idx]).to(self.device)
-            r_h = torch.Tensor(high_r[sample_idx]).to(self.device)
-            terminated = torch.Tensor(t[sample_idx]).to(self.device)
+            low_action = a_l[sample_idx]#.to(self.device)
+            next_avail_action = next_avail_actions[sample_idx]#.to(self.device)
+            # r_l = torch.Tensor(r[sample_idx])#.to(self.device)
+            r_l = r[sample_idx]
+            r_h = high_r[sample_idx]#.to(self.device)
+            # terminated = torch.Tensor(t[sample_idx])#.to(self.device)
+            terminated = t[sample_idx]#.to(self.device)
 
             _, high_en_feat, h_logit = self.get_high_action(agent_obs, enemy_obs, explore=False,
                                                             h_action=high_action_taken,
