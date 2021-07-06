@@ -54,6 +54,7 @@ class Scenario(BaseScenario):
             landmark.state.p_vel = np.zeros(world.dim_p)
 
         world.num_hit = 0
+        world.t = 0
 
     def benchmark_data(self, agent, world):
         rew = 0
@@ -83,23 +84,36 @@ class Scenario(BaseScenario):
         # Agents are rewarded based on distance to each landmark, penalized for collisions
         rew = 0
         min_dist = 5000
+
+        # dist rwd
         for l in world.landmarks:
             # dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
             # rew -= min(dists)
             min_dist = min(min_dist, np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))))
 
-        rew -= min_dist
+        rew -= min_dist * 0.1
 
         if min_dist < 0.5:
             rew += 10
             world.num_hit += 1
 
-        # rew -= min_dist
-
+        # rwd for collision
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent) and a != agent:
                     rew -= 10
+
+        # rwd for boundary
+        def bound(x):
+            if x < 1.8:
+                return 0
+            if x < 2.0:
+                return (x - 1.8) * 10
+            return min((x - 2) ** 2, 10)
+
+        for x in agent.state.p_pos:
+            rew -= bound(abs(x))
+
         return rew
 
     def observation(self, agent, world):
@@ -117,7 +131,16 @@ class Scenario(BaseScenario):
         for other in world.agents:
             if other is agent: continue
             other_pos.append(other.state.p_pos - agent.state.p_pos)
+
+        world.t += 1
+
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
+
+    def done(self, agent, world):
+        if world.t >= 50:
+            return True
+        else:
+            return False
 
 
 def make_env(n_ag, n_en):
@@ -128,7 +151,7 @@ def make_env(n_ag, n_en):
     world = scenario.make_world(n_ag, n_en)
 
     # create multiagent environment
-    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
+    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, done_callback=scenario.done)
     env.shared_reward = False
 
     return env
