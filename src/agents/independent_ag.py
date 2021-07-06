@@ -110,6 +110,7 @@ class IndependentDDPGAgent(BaseAgent):
 
             self.critic_optimizer[i].zero_grad()
             critic_loss.backward()
+            torch.nn.utils.clip_grad_norm(self.critic[i].parameters(), 0.5)
             self.critic_optimizer[i].step()
             critic_l += critic_loss.item()
 
@@ -118,6 +119,7 @@ class IndependentDDPGAgent(BaseAgent):
 
             self.actor_optimizer[i].zero_grad()
             actor_loss.backward()
+            torch.nn.utils.clip_grad_norm(self.actor[i].parameters(), 0.5)
             self.actor_optimizer[i].step()
             actor_l += actor_loss.item()
 
