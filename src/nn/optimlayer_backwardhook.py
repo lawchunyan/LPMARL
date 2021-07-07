@@ -35,7 +35,7 @@ def ineq_up(x, coeff, A, b, C, d):
     return x - 1
 
 
-class solver():
+class MatchginSolver():
     def __init__(self, n, m, c, device='cpu'):
         x = cp.Variable(n * m)
         coeff = cp.Parameter(n * m)
@@ -81,7 +81,7 @@ class solver():
         return out
 
 
-solver = solver(5, 5, 1.5, device)
+solver = MatchginSolver(3, 3, 1.5, device)
 
 # class EdgeMatching(nn.Module):
 #     def __init__(self):

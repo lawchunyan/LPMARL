@@ -10,7 +10,7 @@ from envs.cooperative_navigation import make_env, get_landmark_state
 TRAIN = True
 use_wandb = True
 
-n_ag = 5
+n_ag = 3
 num_episodes = 50000
 coeff = 1.5
 max_t = 50
@@ -22,8 +22,8 @@ agent_config = {
     "action_dim": 5,
     "en_feat_dim": 2,
     'state_shape': (n_ag),
-    "memory_len": 5000,
-    "batch_size": 1000,
+    "memory_len": 50000,
+    "batch_size": 100,
     "train_start": 1000,
     "epsilon_start": 1.0,
     "epsilon_decay": 1e-6,
@@ -98,7 +98,7 @@ for e in range(num_episodes):
 
     if agent.can_fit():
         ret_dict = agent.fit(e)
-        wandb.log(ret_dict)
+        # wandb.log(ret_dict)
 
     if use_wandb:
         wandb.log({'reward': episode_reward,
@@ -108,8 +108,8 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    if e % 500 == 0:
-        agent.save(curr_dir, e)
+    # if e % 500 == 0:
+    #     agent.save(curr_dir, e)
 
     for n in agent.noise:
         n.reset()

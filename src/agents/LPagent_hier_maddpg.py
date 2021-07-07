@@ -27,29 +27,29 @@ class DDPGLPAgent(LPAgent):
 
         if en_feat_dim is None:
             critic_in_dim = state_dim * 2
-            critic_l_out_dim = action_dim + 1
+            # critic_l_out_dim = action_dim + 1
         else:
             critic_in_dim = state_dim + en_feat_dim
-            critic_l_out_dim = action_dim
+            # critic_l_out_dim = action_dim
 
         # layers
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                       nn.LeakyReLU(),
-                                      nn.Linear(hidden_dim, critic_l_out_dim),
+                                      nn.Linear(hidden_dim, 1),
                                       )
         self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                              nn.LeakyReLU(),
-                                             nn.Linear(hidden_dim, critic_l_out_dim),
+                                             nn.Linear(hidden_dim, 1),
                                              )
 
         self.actor_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                      nn.ReLU(),
-                                     nn.Linear(hidden_dim, critic_l_out_dim),
+                                     nn.Linear(hidden_dim, action_dim),
                                      nn.Tanh()
                                      )
         self.actor_l_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                             nn.ReLU(),
-                                            nn.Linear(hidden_dim, critic_l_out_dim),
+                                            nn.Linear(hidden_dim, action_dim),
                                             nn.Tanh()
                                             )
 
@@ -160,7 +160,7 @@ class DDPGLPAgent(LPAgent):
                                                             num_ag=self.n_ag, num_en=self.n_en)
 
             coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag=self.n_ag, num_en=self.n_en)
-            high_qs = coeff.reshape(self.n_ag, self.n_en).gather(dim=1, index=high_action_taken.reshape(-1, 1))
+            high_qs = coeff.reshape(self.n_ag, self.n_en).gather(dim=1, index=high_action_taken.reshape(-1, 1)).squeeze()
 
             n_agent_obs, n_enemy_obs = n_ag_obs[sample_idx], n_en_obs[sample_idx]
             next_high_q_val, next_high_action = self.get_high_qs(n_agent_obs, n_enemy_obs, self.n_ag,
@@ -171,12 +171,12 @@ class DDPGLPAgent(LPAgent):
 
             # low q update
             low_qs = self.critic_l(torch.cat(
-                [torch.Tensor(agent_obs).to(self.device), torch.Tensor(enemy_obs).to(self.device), low_action], dim=-1))
+                [torch.Tensor(agent_obs).to(self.device), torch.Tensor(enemy_obs).to(self.device), low_action], dim=-1)).squeeze()
 
             with torch.no_grad():
                 inp = torch.Tensor(np.concatenate([n_agent_obs, n_enemy_obs[dn(next_high_action)]], axis=-1)).to(
                     self.device)
-                next_low_q_val = self.critic_l_target(torch.cat([inp, self.actor_l_target(inp)], dim=-1))
+                next_low_q_val = self.critic_l_target(torch.cat([inp, self.actor_l_target(inp)], dim=-1)).squeeze()
                 low_q_target = r_l + self.gamma * next_low_q_val * (1 - terminated)
                 actor_inputs.append(inp)
 
