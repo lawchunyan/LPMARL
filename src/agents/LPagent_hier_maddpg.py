@@ -192,7 +192,10 @@ class DDPGLPAgent(LPAgent):
 
         self.critic_optimizer.zero_grad()
         # (loss_c_h * self.high_weight + loss_c_l + loss_a_h * 0.1).backward()
+
         (loss_c_h * self.high_weight + loss_c_l + loss_a_h * 0.1).backward()
+        torch.nn.utils.clip_grad_norm_(self.critic_l.parameters(), 0.5)
+        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
         self.critic_optimizer.step()
 
         actor_inp = torch.cat(actor_inputs, dim=0)
@@ -200,6 +203,7 @@ class DDPGLPAgent(LPAgent):
 
         self.actor_optimizer.zero_grad()
         loss_a_l.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor_l.parameters(), 0.5)
         self.actor_optimizer.step()
 
         ret_dict = {'loss_c_h': loss_c_h.item(),
