@@ -146,7 +146,7 @@ class DDPGLPAgent(LPAgent):
             chosen_action_logit_h = None
 
         if n_batch == 1:
-            chosen_h_en_feat = enemy_obs[chosen_h_action].squeeze()
+            chosen_h_en_feat = enemy_obs[chosen_h_action.squeeze().tolist()]
         else:
             chosen_h_en_feat = enemy_obs[torch.arange(n_batch)[:, None], chosen_h_action]
 
