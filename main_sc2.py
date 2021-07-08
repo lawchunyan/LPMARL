@@ -6,12 +6,12 @@ from datetime import date
 from envs.sc2_env_wrapper import StarCraft2Env
 # from smac.env import StarCraft2Env
 from src.agents.LPagent_Hier import LPAgent
-from src.agents.Qmixagent import QmixAgent
+# from src.agents.Qmixagent import QmixAgent
 
 TRAIN = True
 use_wandb = True
 
-env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300, enemy_obs=True)
+env = StarCraft2Env(map_name="8m_group_v2", window_size_x=400, window_size_y=300, enemy_obs=True)
 
 state_dim = env.get_obs_size()
 num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
@@ -24,7 +24,7 @@ agent_config = {"state_dim": state_dim,
                 "batch_size": 50,
                 "train_start": 100,
                 "epsilon_start": 1.0,
-                "epsilon_decay": 2e-5,
+                "epsilon_decay": 1e-5,
                 "gamma": 0.99,
                 "hidden_dim": 32,
                 "loss_ftn": torch.nn.MSELoss(),
@@ -35,7 +35,7 @@ agent_config = {"state_dim": state_dim,
                 }
 
 agent = LPAgent(**agent_config)
-exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name
+exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name + '8m_group_v2'
 
 dirName = 'result/{}'.format(exp_name)
 if os.path.exists(dirName):
@@ -78,13 +78,16 @@ for e in range(num_episodes):
 
         next_killed_enemies = env.death_tracker_enemy.sum()
         next_state = env.get_obs()
+        n_agent_obs = next_state[:env.n_agents]
+        n_enemy_obs = next_state[env.n_agents:]
+
         high_r = (next_killed_enemies - prev_killed_enemies) * 5
 
-        agent.push(agent_obs, enemy_obs, high_action, low_action, reward, next_state, terminated, avail_actions, high_r)
+        agent.push(agent_obs, enemy_obs, high_action, low_action, reward, n_agent_obs, n_enemy_obs, terminated, avail_actions, high_r)
         episode_reward += reward
         prev_killed_enemies = next_killed_enemies
 
-    if e % 2000 == 0 or (episode_reward > 19.9 and e % 100 == 0):
+    if e % 500 == 0:
         agent.save(curr_dir, e)
 
     if agent.can_fit():

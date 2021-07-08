@@ -76,7 +76,7 @@ class DDPGLPAgent(LPAgent):
         if get_high_action:
             high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                                  self.n_en, explore=explore)
-            self.high_action = high_action.squeeze()
+            self.high_action = high_action.squeeze().tolist()
         else:
             # high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
             #                                                                      self.n_en, explore=explore,

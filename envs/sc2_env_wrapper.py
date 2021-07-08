@@ -1012,7 +1012,7 @@ class StarCraft2Env(MultiAgentEnv):
                 move_feats[ind:] = self.get_surrounding_height(unit)
 
             # Enemy features
-            for e_id, e_unit in self.agents.items():
+            for e_id, e_unit in self.enemies.items():
                 e_x = e_unit.pos.x
                 e_y = e_unit.pos.y
                 dist = self.distance(x, y, e_x, e_y)
