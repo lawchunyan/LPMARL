@@ -26,7 +26,7 @@ agent_config = {
     "batch_size": 100,
     "train_start": 1000,
     "epsilon_start": 1.0,
-    "epsilon_decay": 1e-6,
+    "epsilon_decay": 2e-6,
     "mixer": True,
     "gamma": 0.95,
     "hidden_dim": 32,
