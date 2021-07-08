@@ -22,12 +22,12 @@ agent_config = {
     # 'state_shape': (n_ag),
     "memory_len": 50000,
     "batch_size": 50,
-    "train_start": 100,
+    "train_start": 1000,
     "epsilon_start": 1.0,
     "epsilon_decay": 1e-6,
     "gamma": 0.95,
     "hidden_dim": 32,
-    "lr": 0.01,
+    "lr": 0.001,
     'target_tau': 0.005,
     # 'target_update_interval': 10,
 }
@@ -39,7 +39,7 @@ print(agent.device)
 agent.to(agent.device)
 
 if TRAIN and use_wandb:
-    exp_name = date.today().strftime("%Y%m%d") + "_navigation_" + agent_config['name'] + agent.device
+    exp_name = date.today().strftime("%Y%m%d") + "_navigation_5ag_" + agent_config['name'] + agent.device
     dirName = 'result/{}'.format(exp_name)
     if os.path.exists(dirName):
         i = 0
@@ -77,6 +77,8 @@ for e in range(num_episodes):
             print("E:{}".format(e), "R:{:<5}".format(episode_reward))
             break
 
+    agent.reset_noise()
+
     if len(agent.memory) > agent_config['train_start']:
         ret_dict = agent.fit(e)
         wandb.log(ret_dict)
@@ -84,7 +86,8 @@ for e in range(num_episodes):
     if use_wandb:
         wandb.log({'reward': episode_reward,
                    'EP': e,
-                   'num_hit': env.world.num_hit})
+                   'num_hit': env.world.num_hit,
+                   'epsilon': agent.agents[0].noise.epsilon})
 
     if e % 5000 == 0 and e > 1:
         agent.save(curr_dir, e)

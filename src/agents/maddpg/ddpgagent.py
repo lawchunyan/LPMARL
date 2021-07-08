@@ -31,7 +31,7 @@ class DDPGAgent(nn.Module):
                                  out_activation=nn.Identity())
 
         update_target_network(self.target_critic.parameters(), self.critic.parameters())
-        update_target_network(self.target_critic.parameters(), self.critic.parameters())
+        update_target_network(self.target_policy.parameters(), self.policy.parameters())
 
         self.policy_optimizer = Adam(self.policy.parameters(), lr=lr)
         self.critic_optimizer = Adam(self.critic.parameters(), lr=lr)

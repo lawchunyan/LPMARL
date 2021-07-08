@@ -127,7 +127,7 @@ class MADDPG(nn.Module):
         actual_value = curr_agent.critic(vf_in).view(-1)
         vf_loss = MSELoss(actual_value, target_value)
         vf_loss.backward()
-        # torch.nn.utils.clip_grad_norm(curr_agent.critic.parameters(), 0.5)
+        torch.nn.utils.clip_grad_norm(curr_agent.critic.parameters(), 0.5)
         curr_agent.critic_optimizer.step()
 
         curr_agent.policy_optimizer.zero_grad()
