@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import wandb
 
 from torch.optim import Adam
 from collections import namedtuple
@@ -11,7 +10,8 @@ from src.utils.torch_util import dn
 from src.utils.OUNoise import OUNoise
 
 Transition_LP = namedtuple('Transition_LP_hier',
-                           ('state_ag', 'state_en', 'high_action', 'low_action', 'low_reward', 'n_state_ag', 'n_state_en',
+                           ('state_ag', 'state_en', 'high_action', 'low_action', 'low_reward', 'n_state_ag',
+                            'n_state_en',
                             'terminated', 'avail_action', 'high_rwd'))
 
 
@@ -27,10 +27,8 @@ class DDPGLPAgent(LPAgent):
 
         if en_feat_dim is None:
             critic_in_dim = state_dim * 2
-            # critic_l_out_dim = action_dim + 1
         else:
             critic_in_dim = state_dim + en_feat_dim
-            # critic_l_out_dim = action_dim
 
         # layers
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
@@ -65,24 +63,30 @@ class DDPGLPAgent(LPAgent):
         self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in
                       range(kwargs['n_ag'])]
 
-        self.critic_optimizer = Adam(list(self.critic_l.parameters()) + list(self.critic_h.parameters()), lr=lr)
+        self.critic_h_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
+        self.critic_l_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
         self.actor_optimizer = Adam(self.actor_l.parameters(), lr=lr)
 
         self.actor_h = EdgeMatching_autograd()
+
+        self.ag_indices = [i for i in range(kwargs['n_ag'])]
+        self.en_indices = [i for i in range(kwargs['n_en'])]
 
     def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True, get_high_action=True):
         if get_high_action:
             high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                                  self.n_en, explore=explore)
-            self.high_action = high_action
+            self.high_action = high_action.squeeze()
         else:
-            high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-                                                                                 self.n_en, explore=explore,
-                                                                                 h_action=self.high_action)
+            # high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
+            #                                                                      self.n_en, explore=explore,
+            #                                                                      h_action=self.high_action)
+            high_action = self.high_action
+            high_feat = enemy_obs[high_action]
         low_action = self.get_low_action(agent_obs, high_feat, explore=explore)
         out_action = low_action
 
-        return out_action, dn(high_action), low_action
+        return out_action, dn(high_action.squeeze()), low_action
 
     def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
         low_action = dn(self.actor_l(torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)))
@@ -95,27 +99,56 @@ class DDPGLPAgent(LPAgent):
             low_action = np.array(l_action)
         return low_action
 
+    def get_high_qs(self, agent_obs, enemy_obs, num_ag, num_en):
+        if type(agent_obs) == list:
+            critic_in = [np.concatenate([agent_obs[i], enemy_obs[j]]) for i in self.ag_indices for j in self.en_indices]
+            critic_in = torch.Tensor(critic_in).unsqueeze(0).to(self.device)
+        else:
+            critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
+                         self.en_indices]
+            critic_in = torch.stack(critic_in, dim=1)
+        critic_out = self.critic_h(critic_in)
+        return critic_out
+
+    def get_high_qs_target(self, agent_obs, enemy_obs, num_ag, num_en):
+        if type(agent_obs) == list:
+            critic_in = [np.concatenate([agent_obs[i], enemy_obs[j]]) for i in self.ag_indices for j in self.en_indices]
+            critic_in = torch.Tensor(critic_in).unsqueeze(0).to(self.device)
+        else:
+            critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
+                         self.en_indices]
+            critic_in = torch.stack(critic_in, dim=1)
+        critic_out = self.critic_h_target(critic_in)
+        return critic_out
+
     def get_high_action(self, agent_obs, enemy_obs, num_ag, num_en, explore=False, h_action=None):
-        coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)
+        critic_out = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)  # shape = (batch, n_ag x n_en, 1)
 
-        if explore:
-            coeff = torch.normal(mean=coeff, std=self.std)
-            self.std = max(self.std - self.epsilon_decay, 0.05)
+        n_batch = critic_out.shape[0]
 
-        solution = self.actor_h.apply(coeff.squeeze()).to(self.device)
+        if n_batch == 1:
+            solution = self.actor_h.apply(critic_out.squeeze())  # .to(self.device)
+        else:
+            solution = torch.stack([self.actor_h.apply(c.squeeze()) for c in critic_out])
 
         # Sample from policy
-        policy = solution.reshape(num_ag, num_en)  # to prevent - 0
+        policy = solution.reshape(n_batch, num_ag, num_en)  # to prevent - 0
         policy += 1e-4
-        policy = policy / policy.sum(1, keepdims=True)
+        policy = policy / policy.sum(-1, keepdims=True)
 
         if h_action is not None:
-            chosen_h_action = h_action.to(self.device)
+            chosen_h_action = h_action
+            p_logit = torch.log(policy)
+            chosen_action_logit_h = p_logit.gather(-1, chosen_h_action.unsqueeze(-1))
+            # chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
         else:
-            chosen_h_action = torch.distributions.categorical.Categorical(policy).sample().to(self.device)
+            chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
+            chosen_action_logit_h = None
 
-        chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
-        chosen_h_en_feat = enemy_obs[chosen_h_action.tolist()]
+        if n_batch == 1:
+            chosen_h_en_feat = enemy_obs[chosen_h_action].squeeze()
+        else:
+            chosen_h_en_feat = enemy_obs[torch.arange(n_batch)[:, None], chosen_h_action]
 
         return chosen_h_action, chosen_h_en_feat, chosen_action_logit_h
 
@@ -138,82 +171,60 @@ class DDPGLPAgent(LPAgent):
             for s, l in zip(sample, lst):
                 l.append(s)
 
-        # ag_obs = torch.Tensor(ag_obs).to(self.device)
-        # en_obs = torch.Tensor(en_obs).to(self.device)
+        ag_obs = torch.Tensor(ag_obs).to(self.device)
+        en_obs = torch.Tensor(en_obs).to(self.device)
+        a_h = torch.tensor(a_h, dtype=torch.int64).to(self.device)
+        a_l = torch.Tensor(a_l).to(self.device)
 
-        loss_critic_h = []
-        loss_actor_h = []
-        loss_critic_l = []
+        n_ag_obs = torch.Tensor(n_ag_obs).to(self.device)
+        n_en_obs = torch.Tensor(n_en_obs).to(self.device)
+        r_h = torch.Tensor(high_r).to(self.device)
 
-        actor_inputs = []
-        for sample_idx in range(self.batch_size):
-            agent_obs, enemy_obs = ag_obs[sample_idx], en_obs[sample_idx]
-            high_action_taken = torch.tensor(a_h[sample_idx]).to(self.device)
-            low_action = torch.Tensor(a_l[sample_idx]).to(self.device)
+        high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
+        high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+        high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
 
-            r_l = torch.Tensor(r[sample_idx]).to(self.device)
-            r_h = torch.Tensor(high_r[sample_idx]).to(self.device)
-            terminated = torch.Tensor(t[sample_idx]).to(self.device)
+        with torch.no_grad():
+            next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
+            next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+            next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
+            high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h
 
-            _, high_en_feat, h_logit = self.get_high_action(agent_obs, enemy_obs, explore=False,
-                                                            h_action=high_action_taken,
-                                                            num_ag=self.n_ag, num_en=self.n_en)
+        high_critic_loss = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
 
-            coeff = self.get_high_qs(agent_obs, enemy_obs, num_ag=self.n_ag, num_en=self.n_en)
-            high_qs = coeff.reshape(self.n_ag, self.n_en).gather(dim=1, index=high_action_taken.reshape(-1, 1)).squeeze()
+        self.critic_h_optimizer.zero_grad()
+        high_critic_loss.backward()
+        self.critic_h_optimizer.step()
 
-            n_agent_obs, n_enemy_obs = n_ag_obs[sample_idx], n_en_obs[sample_idx]
-            next_high_q_val, next_high_action = self.get_high_qs(n_agent_obs, n_enemy_obs, self.n_ag,
-                                                                 self.n_en). \
-                reshape(self.n_ag, self.n_en).max(dim=1)
+        low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h], a_l], dim=-1)
+        low_qs = self.critic_l(low_critic_in)
 
-            high_q_target = r_h + self.gamma * next_high_q_val.detach() * (1 - terminated)
+        with torch.no_grad():
+            inp = torch.cat([n_ag_obs, n_en_obs[torch.arange(self.batch_size)[:, None], next_high_action]], dim=-1)
+            next_action = self.actor_l_target(inp)
+            next_low_critic_in = torch.cat([inp, next_action], dim=-1)
+            next_low_q = self.critic_l_target(next_low_critic_in)
+            low_q_target = next_low_q.squeeze() + torch.Tensor(r).to(self.device)
 
-            # low q update
-            low_qs = self.critic_l(torch.cat(
-                [torch.Tensor(agent_obs).to(self.device), torch.Tensor(enemy_obs).to(self.device), low_action], dim=-1)).squeeze()
+        low_q_loss = self.loss_ftn(low_qs.squeeze(), low_q_target)
 
-            with torch.no_grad():
-                inp = torch.Tensor(np.concatenate([n_agent_obs, n_enemy_obs[dn(next_high_action)]], axis=-1)).to(
-                    self.device)
-                next_low_q_val = self.critic_l_target(torch.cat([inp, self.actor_l_target(inp)], dim=-1)).squeeze()
-                low_q_target = r_l + self.gamma * next_low_q_val * (1 - terminated)
-                actor_inputs.append(inp)
+        self.critic_l_optimizer.zero_grad()
+        low_q_loss.backward()
+        self.critic_l_optimizer.step()
 
-            loss_critic_h.append(self.loss_ftn(high_qs, high_q_target))
-            loss_critic_l.append(self.loss_ftn(low_qs, low_q_target))
-
-            loss_actor_h.append(-h_logit * low_qs)
-            # loss_actor_l.append(-self.critic_l(torch.cat([inp, self.actor_l(inp)], dim=-1)))
-
-        loss_c_h = torch.stack(loss_critic_h).mean()
-        loss_c_l = torch.stack(loss_critic_l).mean()
-        loss_a_h = torch.stack(loss_actor_h).mean()
-
-        self.critic_optimizer.zero_grad()
-        # (loss_c_h * self.high_weight + loss_c_l + loss_a_h * 0.1).backward()
-
-        (loss_c_h * self.high_weight + loss_c_l + loss_a_h * 0.1).backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_l.parameters(), 0.5)
-        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
-        self.critic_optimizer.step()
-
-        actor_inp = torch.cat(actor_inputs, dim=0)
-        loss_a_l = -self.critic_l_target(torch.cat([actor_inp, self.actor_l(actor_inp)], dim=-1)).mean()
-
+        actor_inp = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
+        low_actor_loss = -self.critic_l(torch.cat([actor_inp, self.actor_l(actor_inp)], dim=-1))
+        low_actor_loss = low_actor_loss.mean()
         self.actor_optimizer.zero_grad()
-        loss_a_l.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor_l.parameters(), 0.5)
+        low_actor_loss.backward()
         self.actor_optimizer.step()
 
-        ret_dict = {'loss_c_h': loss_c_h.item(),
-                    'loss_c_l': loss_c_l.item(),
-                    'loss_a_h': loss_a_h.item(),
-                    'loss_a_l': loss_a_l.item(),
+        ret_dict = {'loss_c_h': high_critic_loss.item(),
+                    'loss_c_l': low_q_loss.item(),
+                    # 'loss_a_h': loss_a_h.item(),
+                    'loss_a_l': low_actor_loss.item(),
                     'high_weight': self.high_weight
                     }
-
-        self.high_weight = min(0.7, self.high_weight + 1e-5)
 
         # gradient on high / low action
         if e % self.target_update_interval == 0:

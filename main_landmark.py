@@ -8,7 +8,7 @@ from src.utils.make_graph import make_graph
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
 TRAIN = True
-use_wandb = False
+use_wandb = True
 
 n_ag = 3
 num_episodes = 50000
@@ -24,7 +24,7 @@ agent_config = {
     'state_shape': (n_ag),
     "memory_len": 50000,
     "batch_size": 100,
-    "train_start": 1000,
+    "train_start": 100,
     "epsilon_start": 1.0,
     "epsilon_decay": 2e-6,
     "mixer": True,
@@ -68,6 +68,8 @@ if TRAIN and use_wandb:
 
 for e in range(num_episodes):
     episode_reward = 0
+    episode_reward_l = 0
+
     state = env.reset()
     landmark_state = get_landmark_state(env)
     ep_len = 0
@@ -80,18 +82,17 @@ for e in range(num_episodes):
         else:
             get_high_action = False
 
-        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True,
-                                                           get_high_action=get_high_action)
-        # onehot_action = change_to_one_hot(action)
+        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True, get_high_action=get_high_action)
 
         std_action += action.std(axis=0)
         next_state, reward, terminated, _ = env.step(action)
-        # next_state = make_graph(next_state, landmark_state)
-        episode_reward += sum(reward)
-
         low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
-        agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated, 0,
+        episode_reward += sum(reward)
+        episode_reward_l += sum(low_reward)
+
+        agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated,
+                   0,
                    reward)
         state = next_state
 
@@ -100,17 +101,17 @@ for e in range(num_episodes):
 
     if agent.can_fit():
         ret_dict = agent.fit(e)
-        # wandb.log(ret_dict)
+        wandb.log(ret_dict)
 
     if use_wandb:
         wandb.log({'reward': episode_reward,
                    'epsilon': agent.epsilon,
                    'EP': e,
-                   'timestep': ep_len,
                    'num_hit': env.world.num_hit,
-                   'std_action': std_action / ep_len})
+                   'std_action': std_action / ep_len,
+                   'reward_l': episode_reward_l})
 
-    if e % 1000 == 0:
+    if e % 1000 == 0 and e > 5000:
         agent.save(curr_dir, e)
 
     for n in agent.noise:
