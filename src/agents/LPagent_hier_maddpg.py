@@ -77,6 +77,7 @@ class DDPGLPAgent(LPAgent):
             high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                                  self.n_en, explore=explore)
             self.high_action = high_action.squeeze().tolist()
+            high_action = self.high_action
         else:
             # high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
             #                                                                      self.n_en, explore=explore,
@@ -86,7 +87,7 @@ class DDPGLPAgent(LPAgent):
         low_action = self.get_low_action(agent_obs, high_feat, explore=explore)
         out_action = low_action
 
-        return out_action, dn(high_action.squeeze()), low_action
+        return out_action, high_action, low_action
 
     def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
         low_action = dn(self.actor_l(torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)))
