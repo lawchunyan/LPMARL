@@ -164,22 +164,14 @@ def get_landmark_state(env: MultiAgentEnv):
 
     return np.array(out_state)
 
-# def vis_state(env):
-#     fig = plt.figure(figsize=(5,5))
-#     ax = fig.add_subplot(111)
-#
-#     # msking rectangle
-#     ax.set_xlim([-3, 3])
-#     ax.set_ylim([-3, 3])
-#     ax.set_xticks([])
-#     ax.set_yticks([])
-#
-#     # plotting agent and landmarks
-#     for entity in env.world.entities:
-#         color = entity.color
-#         size = entity.size
-#         center = entity.state.p_pos
-#         draw_circle = plt.Circle(center, size, color=color)
-#         ax.add_artist(draw_circle)
-#     plt.show()
-#     clear_output(wait=0.1)
+
+def intrinsic_reward(env: MultiAgentEnv, agent_i, landmark_i):
+    agent_pos = env.world.agents[agent_i].state.p_pos
+    landmark_pos = env.world.landmarks[landmark_i].state.p_pos
+
+    squared_distance = np.square(agent_pos - landmark_pos).sum()
+
+    if squared_distance < 0.5 ** 2:
+        return 10
+    else:
+        return 0

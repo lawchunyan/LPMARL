@@ -11,7 +11,7 @@ from src.utils.torch_util import dn
 from src.utils.OUNoise import OUNoise
 
 Transition_LP = namedtuple('Transition_LP_hier',
-                           ('state_ag', 'state_en', 'high_action', 'low_action', 'reward', 'n_state_ag', 'n_state_en',
+                           ('state_ag', 'state_en', 'high_action', 'low_action', 'low_reward', 'n_state_ag', 'n_state_en',
                             'terminated', 'avail_action', 'high_rwd'))
 
 

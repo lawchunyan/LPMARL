@@ -5,10 +5,10 @@ import os
 from datetime import date
 from src.agents.LPagent_hier_maddpg import DDPGLPAgent
 from src.utils.make_graph import make_graph
-from envs.cooperative_navigation import make_env, get_landmark_state
+from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
 TRAIN = True
-use_wandb = True
+use_wandb = False
 
 n_ag = 3
 num_episodes = 50000
@@ -89,7 +89,9 @@ for e in range(num_episodes):
         # next_state = make_graph(next_state, landmark_state)
         episode_reward += sum(reward)
 
-        agent.push(state, landmark_state, high_action, low_action, reward, next_state, landmark_state, terminated, 0,
+        low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
+
+        agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated, 0,
                    reward)
         state = next_state
 
@@ -108,8 +110,8 @@ for e in range(num_episodes):
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len})
 
-    # if e % 500 == 0:
-    #     agent.save(curr_dir, e)
+    if e % 1000 == 0:
+        agent.save(curr_dir, e)
 
     for n in agent.noise:
         n.reset()
