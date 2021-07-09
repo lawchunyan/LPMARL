@@ -81,6 +81,21 @@ class Scenario(BaseScenario):
         return True if dist < dist_min else False
 
     def reward(self, agent, world):
+        # agents only recieves global reward
+        reward = 0
+        for l in world.landmarks:
+            landmark_pos = l.state.p_pos
+            min_dist_to_l = 100
+            for a in world.agents:
+                ag_pos = a.state.p_pos
+                min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
+
+            if min_dist_to_l < 0.5:
+                reward += 10
+
+        return reward
+
+    def reward_prev(self, agent, world):
         # Agents are rewarded based on distance to each landmark, penalized for collisions
         rew = 0
         min_dist = 5000
