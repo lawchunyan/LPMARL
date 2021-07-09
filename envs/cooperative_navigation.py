@@ -92,6 +92,7 @@ class Scenario(BaseScenario):
 
             if min_dist_to_l < 0.5:
                 reward += 10
+                self.num_hit += 1
 
         return reward
 
