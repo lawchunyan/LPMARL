@@ -174,4 +174,4 @@ def intrinsic_reward(env: MultiAgentEnv, agent_i, landmark_i):
     if squared_distance < 0.5 ** 2:
         return 10
     else:
-        return 0
+        return -10

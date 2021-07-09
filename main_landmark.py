@@ -8,7 +8,7 @@ from src.utils.make_graph import make_graph
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
 TRAIN = True
-use_wandb = False
+use_wandb = True
 
 n_ag = 3
 num_episodes = 50000
@@ -89,6 +89,7 @@ for e in range(num_episodes):
         low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
         episode_reward += sum(reward)
+        reward = [r + sum(reward)/n_ag for r in reward]
         episode_reward_l += sum(low_reward)
 
         agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated,
