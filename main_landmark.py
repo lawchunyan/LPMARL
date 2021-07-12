@@ -12,7 +12,7 @@ use_wandb = True
 
 n_ag = 3
 num_episodes = 50000
-coeff = 1.5
+coeff = 1.2
 max_t = 50
 
 agent_config = {
@@ -96,13 +96,13 @@ for e in range(num_episodes):
                    0,
                    reward)
         state = next_state
+        if agent.can_fit() and TRAIN:
+            ret_dict = agent.fit(e)
+            wandb.log(ret_dict)
 
         if ep_len > max_t:
             break
 
-    if agent.can_fit():
-        ret_dict = agent.fit(e)
-        wandb.log(ret_dict)
 
     if use_wandb:
         wandb.log({'reward': episode_reward,

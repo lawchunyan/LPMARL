@@ -83,6 +83,7 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         # agents only recieves global reward
         reward = 0
+        n_touch = 0
         for l in world.landmarks:
             landmark_pos = l.state.p_pos
             min_dist_to_l = 100
@@ -91,8 +92,15 @@ class Scenario(BaseScenario):
                 min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
 
             if min_dist_to_l < 0.5:
-                reward += 10
-                self.num_hit += 1
+                n_touch += 1
+                world.num_hit += 1
+
+        if n_touch == len(world.landmarks):
+            reward += 100
+
+        # for a in world.agents:
+        #     if a != agent and self.is_collision(a, agent):
+        #         reward -= 10
 
         return reward
 
@@ -187,7 +195,15 @@ def intrinsic_reward(env: MultiAgentEnv, agent_i, landmark_i):
 
     squared_distance = np.square(agent_pos - landmark_pos).sum()
 
+    reward = 0
+
     if squared_distance < 0.5 ** 2:
-        return 10
+        reward += 10
     else:
-        return -10
+        reward -= 10
+
+    for a in env.world.agents:
+        if a != env.world.agents[agent_i] and np.square(a.state.p_pos - agent_pos).sum() < 1:
+            reward -= 1
+
+    return reward

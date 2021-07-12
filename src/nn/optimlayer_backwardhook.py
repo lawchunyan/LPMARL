@@ -81,7 +81,7 @@ class MatchginSolver():
         return out
 
 
-solver = MatchginSolver(3, 3, 1.5, device)
+solver = MatchginSolver(3, 3, 1.2, device)
 
 # class EdgeMatching(nn.Module):
 #     def __init__(self):

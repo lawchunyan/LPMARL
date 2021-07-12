@@ -180,6 +180,7 @@ class DDPGLPAgent(LPAgent):
         n_ag_obs = torch.Tensor(n_ag_obs).to(self.device)
         n_en_obs = torch.Tensor(n_en_obs).to(self.device)
         r_h = torch.Tensor(high_r).to(self.device)
+        r_l = torch.Tensor(r).to(self.device)
 
         high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
         high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
@@ -191,10 +192,10 @@ class DDPGLPAgent(LPAgent):
             next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
             high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h
 
-        high_critic_loss = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
+        loss_c_h = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
 
         self.critic_h_optimizer.zero_grad()
-        high_critic_loss.backward()
+        loss_c_h.backward()
         torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 1)
         self.critic_h_optimizer.step()
 
@@ -206,27 +207,27 @@ class DDPGLPAgent(LPAgent):
             next_action = self.actor_l_target(inp)
             next_low_critic_in = torch.cat([inp, next_action], dim=-1)
             next_low_q = self.critic_l_target(next_low_critic_in)
-            low_q_target = next_low_q.squeeze() + torch.Tensor(r).to(self.device)
+            low_q_target = next_low_q.squeeze() + r_l
 
-        low_q_loss = self.loss_ftn(low_qs.squeeze(), low_q_target)
+        loss_c_l = self.loss_ftn(low_qs.squeeze(), low_q_target)
 
         self.critic_l_optimizer.zero_grad()
-        low_q_loss.backward()
+        loss_c_l.backward()
         torch.nn.utils.clip_grad_norm_(self.critic_l.parameters(), 1)
         self.critic_l_optimizer.step()
 
         actor_inp = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
-        low_actor_loss = -self.critic_l(torch.cat([actor_inp, self.actor_l(actor_inp)], dim=-1))
-        low_actor_loss = low_actor_loss.mean()
+        loss_a_l = -self.critic_l(torch.cat([actor_inp, self.actor_l(actor_inp)], dim=-1))
+        loss_a_l = loss_a_l.mean()
         self.actor_optimizer.zero_grad()
-        low_actor_loss.backward()
+        loss_a_l.backward()
         torch.nn.utils.clip_grad_norm_(self.actor_l.parameters(), 1)
         self.actor_optimizer.step()
 
-        ret_dict = {'loss_c_h': high_critic_loss.item(),
-                    'loss_c_l': low_q_loss.item(),
+        ret_dict = {'loss_c_h': loss_c_h.item(),
+                    'loss_c_l': loss_c_l.item(),
                     # 'loss_a_h': loss_a_h.item(),
-                    'loss_a_l': low_actor_loss.item(),
+                    'loss_a_l': loss_a_l.item(),
                     'high_weight': self.high_weight
                     }
 
