@@ -4,7 +4,6 @@ import os
 
 from datetime import date
 from src.agents.LPagent_hier_maddpg import DDPGLPAgent
-# from src.agents.LPagent_hier_2 import DDPGLPAgent
 from src.utils.make_graph import make_graph
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
@@ -27,7 +26,7 @@ agent_config = {
     "batch_size": 100,
     "train_start": 100,
     "epsilon_start": 1.0,
-    "epsilon_decay": 1e-6,
+    "epsilon_decay": 2e-6,
     "mixer": True,
     "gamma": 0.95,
     "hidden_dim": 32,
@@ -35,7 +34,7 @@ agent_config = {
     "lr": 0.01,
     'memory_type': 'sample',
     'target_tau': 0.005,
-    'target_update_interval': 100,
+    'target_update_interval': 10,
     'coeff': coeff,
     "sc2": False
 }

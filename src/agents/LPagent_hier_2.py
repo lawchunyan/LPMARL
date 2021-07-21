@@ -31,32 +31,25 @@ class DDPGLPAgent(LPAgent):
             critic_in_dim = state_dim + en_feat_dim
 
         # layers
-        self.critic_h_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
-        self.critic_l_batch = nn.BatchNorm1d(critic_in_dim + action_dim, affine=False)
-
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                       nn.LeakyReLU(),
-                                      nn.Linear(hidden_dim, 1),
+                                      nn.Linear(hidden_dim, action_dim),
                                       )
         self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                              nn.LeakyReLU(),
-                                             nn.Linear(hidden_dim, 1),
+                                             nn.Linear(hidden_dim, action_dim),
                                              )
 
-        self.actor_l = nn.ModuleList([nn.Sequential(
-            # nn.BatchNorm1d(critic_in_dim),
-            nn.Linear(critic_in_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, action_dim),
-            nn.Tanh())
-            for _ in range(kwargs['n_ag'])])
-        self.actor_l_target = nn.ModuleList([nn.Sequential(
-            # nn.BatchNorm1d(critic_in_dim),
-            nn.Linear(critic_in_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, action_dim),
-            nn.Tanh())
-            for _ in range(kwargs['n_ag'])])
+        self.actor_l = nn.ModuleList([nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
+                                                    nn.ReLU(),
+                                                    nn.Linear(hidden_dim, action_dim),
+                                                    nn.Tanh())
+                                      for _ in range(kwargs['n_ag'])])
+        self.actor_l_target = nn.ModuleList([nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
+                                                           nn.ReLU(),
+                                                           nn.Linear(hidden_dim, action_dim),
+                                                           nn.Tanh())
+                                             for _ in range(kwargs['n_ag'])])
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters())
@@ -64,12 +57,12 @@ class DDPGLPAgent(LPAgent):
          range(kwargs['n_ag'])]
 
         # src parameters
-        epsilon_start = kwargs['epsilon_start']
-        epsilon_decay = kwargs['epsilon_decay']
+        # epsilon_start = kwargs['epsilon_start']
+        # epsilon_decay = kwargs['epsilon_decay']
         lr = kwargs['lr']
 
-        self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in
-                      range(kwargs['n_ag'])]
+        # self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in
+        #               range(kwargs['n_ag'])]
 
         self.critic_h_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
         self.critic_l_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
@@ -87,9 +80,6 @@ class DDPGLPAgent(LPAgent):
             self.high_action = high_action.squeeze().tolist()
             high_action = self.high_action
         else:
-            # high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-            #                                                                      self.n_en, explore=explore,
-            #                                                                      h_action=self.high_action)
             high_action = self.high_action
             high_feat = enemy_obs[high_action]
         low_action = self.get_low_action(agent_obs, high_feat, explore=explore)
@@ -122,11 +112,7 @@ class DDPGLPAgent(LPAgent):
             critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
                          self.en_indices]
             critic_in = torch.stack(critic_in, dim=1)
-
-        critic_in = self.critic_h_batch(critic_in.transpose(1, 2))
-        critic_in = critic_in.transpose(1, 2)
-
-        critic_out = self.critic_h(critic_in.squeeze())
+        critic_out = self.critic_h(critic_in)
         return critic_out
 
     def get_high_qs_target(self, agent_obs, enemy_obs, num_ag, num_en):
@@ -137,21 +123,21 @@ class DDPGLPAgent(LPAgent):
             critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
                          self.en_indices]
             critic_in = torch.stack(critic_in, dim=1)
-        critic_out = self.critic_h_target(critic_in.squeeze())
+        critic_out = self.critic_h_target(critic_in)
         return critic_out
 
     def get_high_action(self, agent_obs, enemy_obs, num_ag, num_en, explore=False, h_action=None):
         critic_out = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)  # shape = (batch, n_ag x n_en, 1)
 
-        # n_batch = critic_out.shape[0]
-        #
-        # if n_batch == 1:
-        solution = self.actor_h.apply(critic_out.squeeze())  # .to(self.device)
-        # else:
-        #     solution = torch.stack([self.actor_h.apply(c.squeeze()) for c in critic_out])
+        n_batch = critic_out.shape[0]
+
+        if n_batch == 1:
+            solution = self.actor_h.apply(critic_out.squeeze())  # .to(self.device)
+        else:
+            solution = torch.stack([self.actor_h.apply(c.squeeze()) for c in critic_out])
 
         # Sample from policy
-        policy = solution.reshape(1, num_ag, num_en)  # to prevent - 0
+        policy = solution.reshape(n_batch, num_ag, num_en)  # to prevent - 0
         policy += 1e-4
         policy = policy / policy.sum(-1, keepdims=True)
 
@@ -164,10 +150,10 @@ class DDPGLPAgent(LPAgent):
             chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
             chosen_action_logit_h = None
 
-        # if n_batch == 1:
-        chosen_h_en_feat = enemy_obs[chosen_h_action.squeeze().tolist()]
-        # else:
-        #     chosen_h_en_feat = enemy_obs[torch.arange(n_batch)[:, None], chosen_h_action]
+        if n_batch == 1:
+            chosen_h_en_feat = enemy_obs[chosen_h_action.squeeze().tolist()]
+        else:
+            chosen_h_en_feat = enemy_obs[torch.arange(n_batch)[:, None], chosen_h_action]
 
         return chosen_h_action, chosen_h_en_feat, chosen_action_logit_h
 
@@ -225,7 +211,6 @@ class DDPGLPAgent(LPAgent):
 
         # low critic
         low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h], a_l], dim=-1)
-        low_critic_in = self.critic_l_batch(low_critic_in.transpose(1, 2)).transpose(1, 2)
         low_qs = self.critic_l(low_critic_in)
 
         with torch.no_grad():
