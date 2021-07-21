@@ -45,6 +45,8 @@ agent_config['name'] = agent.name
 print(agent.device)
 agent.to(agent.device)
 
+n_fit = 0
+
 if TRAIN and use_wandb:
     exp_name = date.today().strftime("%Y%m%d") + "_navigation_" + agent_config['name'] + agent.device
     dirName = 'result/{}'.format(exp_name)
@@ -97,8 +99,9 @@ for e in range(num_episodes):
                    0,
                    reward)
         state = next_state
-        if agent.can_fit() and TRAIN:
-            ret_dict = agent.fit(e)
+        if agent.can_fit() and TRAIN and ep_len % 5 == 0:
+            n_fit += 1
+            ret_dict = agent.fit(n_fit)
             wandb.log(ret_dict)
 
         if ep_len > max_t:
