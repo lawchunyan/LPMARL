@@ -31,8 +31,8 @@ class DDPGLPAgent(LPAgent):
             critic_in_dim = state_dim + en_feat_dim
 
         # layers
-        self.critic_h_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
-        self.critic_l_batch = nn.BatchNorm1d(critic_in_dim + action_dim, affine=False)
+        # self.critic_h_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
+        # self.critic_l_batch = nn.BatchNorm1d(critic_in_dim + action_dim, affine=False)
 
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                       nn.LeakyReLU(),
@@ -123,8 +123,8 @@ class DDPGLPAgent(LPAgent):
                          self.en_indices]
             critic_in = torch.stack(critic_in, dim=1)
 
-        critic_in = self.critic_h_batch(critic_in.transpose(1, 2))
-        critic_in = critic_in.transpose(1, 2)
+        # critic_in = self.critic_h_batch(critic_in.transpose(1, 2))
+        # critic_in = critic_in.transpose(1, 2)
 
         critic_out = self.critic_h(critic_in.squeeze())
         return critic_out
@@ -215,7 +215,7 @@ class DDPGLPAgent(LPAgent):
 
         self.critic_h_optimizer.zero_grad()
         loss_c_h.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
         self.critic_h_optimizer.step()
 
         # high actor: Note: WIP
@@ -225,7 +225,7 @@ class DDPGLPAgent(LPAgent):
 
         # low critic
         low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h], a_l], dim=-1)
-        low_critic_in = self.critic_l_batch(low_critic_in.transpose(1, 2)).transpose(1, 2)
+        # low_critic_in = self.critic_l_batch(low_critic_in.transpose(1, 2)).transpose(1, 2)
         low_qs = self.critic_l(low_critic_in)
 
         with torch.no_grad():
@@ -242,7 +242,7 @@ class DDPGLPAgent(LPAgent):
 
         self.critic_l_optimizer.zero_grad()
         loss_c_l.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_l.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(self.critic_l.parameters(), 0.5)
         self.critic_l_optimizer.step()
 
         # low actor
@@ -254,7 +254,7 @@ class DDPGLPAgent(LPAgent):
             loss_a_l = loss_a_l.mean()
             self.actor_optimizer[i].zero_grad()
             loss_a_l.backward()
-            torch.nn.utils.clip_grad_norm_(self.actor_l[i].parameters(), 1)
+            torch.nn.utils.clip_grad_norm_(self.actor_l[i].parameters(), 0.5)
             self.actor_optimizer[i].step()
             loss_a_l_total += loss_a_l.item()
 
