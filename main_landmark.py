@@ -14,7 +14,7 @@ use_wandb = True
 n_ag = 3
 num_episodes = 50000
 coeff = 1.2
-max_t = 50
+max_t = 30
 
 agent_config = {
     "state_dim": 4 + 2 * (2 * n_ag - 1),
@@ -23,7 +23,7 @@ agent_config = {
     "action_dim": 5,
     "en_feat_dim": 2,
     'state_shape': (n_ag),
-    "memory_len": 50000,
+    "memory_len": 500000,
     "batch_size": 100,
     "train_start": 100,
     "epsilon_start": 1.0,
@@ -100,7 +100,7 @@ for e in range(num_episodes):
                    0,
                    reward)
         state = next_state
-        if agent.can_fit() and TRAIN and ep_len % 5 == 0:
+        if agent.can_fit() and TRAIN and ep_len % 3 == 0:
             n_fit += 1
             ret_dict = agent.fit(n_fit)
             wandb.log(ret_dict)
