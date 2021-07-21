@@ -82,14 +82,15 @@ for e in range(num_episodes):
         else:
             get_high_action = False
 
-        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True, get_high_action=get_high_action)
+        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True,
+                                                           get_high_action=get_high_action)
 
         std_action += action.std(axis=0)
         next_state, reward, terminated, _ = env.step(action)
         low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
         episode_reward += sum(reward)
-        reward = [sum(reward)/n_ag for r in reward]
+        reward = [sum(reward) / n_ag for r in reward]
         episode_reward_l += sum(low_reward)
 
         agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated,
@@ -102,7 +103,6 @@ for e in range(num_episodes):
 
         if ep_len > max_t:
             break
-
 
     if use_wandb:
         wandb.log({'reward': episode_reward,

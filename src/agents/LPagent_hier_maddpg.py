@@ -40,20 +40,21 @@ class DDPGLPAgent(LPAgent):
                                              nn.Linear(hidden_dim, 1),
                                              )
 
-        self.actor_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
-                                     nn.ReLU(),
-                                     nn.Linear(hidden_dim, action_dim),
-                                     nn.Tanh()
-                                     )
-        self.actor_l_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
-                                            nn.ReLU(),
-                                            nn.Linear(hidden_dim, action_dim),
-                                            nn.Tanh()
-                                            )
+        self.actor_l = nn.ModuleList([nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
+                                                    nn.ReLU(),
+                                                    nn.Linear(hidden_dim, action_dim),
+                                                    nn.Tanh())
+                                      for _ in range(kwargs['n_ag'])])
+        self.actor_l_target = nn.ModuleList([nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
+                                                           nn.ReLU(),
+                                                           nn.Linear(hidden_dim, action_dim),
+                                                           nn.Tanh())
+                                             for _ in range(kwargs['n_ag'])])
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters())
-        self.update_target_network(self.actor_l_target.parameters(), self.actor_l.parameters())
+        [self.update_target_network(self.actor_l_target[i].parameters(), self.actor_l[i].parameters()) for i in
+         range(kwargs['n_ag'])]
 
         # src parameters
         epsilon_start = kwargs['epsilon_start']
@@ -65,7 +66,7 @@ class DDPGLPAgent(LPAgent):
 
         self.critic_h_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
         self.critic_l_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
-        self.actor_optimizer = Adam(self.actor_l.parameters(), lr=lr)
+        self.actor_optimizer = [Adam(self.actor_l[i].parameters(), lr=lr) for i in range(kwargs['n_ag'])]
 
         self.actor_h = EdgeMatching_autograd()
 
@@ -90,7 +91,13 @@ class DDPGLPAgent(LPAgent):
         return out_action, high_action, low_action
 
     def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
-        low_action = dn(self.actor_l(torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)))
+        low_action = []
+        for i in range(self.n_ag):
+            low_action_input = torch.Tensor(np.concatenate([agent_obs[i], high_feat[i]], axis=-1)).to(self.device)
+            la = dn(self.actor_l[i](low_action_input))
+            low_action.append(la)
+
+        # low_action = dn(self.actor_l(torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)))
         if explore:
             l_action = []
             for i in range(self.n_ag):
@@ -182,6 +189,7 @@ class DDPGLPAgent(LPAgent):
         r_h = torch.Tensor(high_r).to(self.device)
         r_l = torch.Tensor(r).to(self.device)
 
+        # high critic
         high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
         high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
         high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
@@ -199,12 +207,21 @@ class DDPGLPAgent(LPAgent):
         torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 1)
         self.critic_h_optimizer.step()
 
+        # high actor: Note: WIP
+        # for i in range(self.batch_size):
+        #     curr_sol = self.actor_h.apply(high_qs[i].reshape(-1)).reshape(self.n_ag, -1)
+        #     logit_taken = curr_sol.gather(-1, a_h[i].unsqueeze(-1))
+
+        # low critic
         low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h], a_l], dim=-1)
         low_qs = self.critic_l(low_critic_in)
 
         with torch.no_grad():
             inp = torch.cat([n_ag_obs, n_en_obs[torch.arange(self.batch_size)[:, None], next_high_action]], dim=-1)
-            next_action = self.actor_l_target(inp)
+            next_actions = [self.actor_l_target[i](inp[:, i]) for i in range(self.n_ag)]
+            next_action = torch.stack(next_actions, dim=1)
+
+            # next_action = self.actor_l_target(inp)
             next_low_critic_in = torch.cat([inp, next_action], dim=-1)
             next_low_q = self.critic_l_target(next_low_critic_in)
             low_q_target = next_low_q.squeeze() + r_l
@@ -216,18 +233,23 @@ class DDPGLPAgent(LPAgent):
         torch.nn.utils.clip_grad_norm_(self.critic_l.parameters(), 1)
         self.critic_l_optimizer.step()
 
+        # low actor
         actor_inp = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
-        loss_a_l = -self.critic_l(torch.cat([actor_inp, self.actor_l(actor_inp)], dim=-1))
-        loss_a_l = loss_a_l.mean()
-        self.actor_optimizer.zero_grad()
-        loss_a_l.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor_l.parameters(), 1)
-        self.actor_optimizer.step()
+        loss_a_l_total = 0
+        for i in range(self.n_ag):
+            actor_in = actor_inp[:, i]
+            loss_a_l = -self.critic_l(torch.cat([actor_in, self.actor_l[i](actor_in)], dim=-1))
+            loss_a_l = loss_a_l.mean()
+            self.actor_optimizer[i].zero_grad()
+            loss_a_l.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor_l[i].parameters(), 1)
+            self.actor_optimizer[i].step()
+            loss_a_l_total += loss_a_l.item()
 
         ret_dict = {'loss_c_h': loss_c_h.item(),
                     'loss_c_l': loss_c_l.item(),
                     # 'loss_a_h': loss_a_h.item(),
-                    'loss_a_l': loss_a_l.item(),
+                    'loss_a_l': loss_a_l_total,
                     'high_weight': self.high_weight
                     }
 
