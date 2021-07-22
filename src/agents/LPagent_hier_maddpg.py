@@ -50,14 +50,14 @@ class DDPGLPAgent(LPAgent):
         self.actor_l = nn.ModuleList([nn.Sequential(
             # nn.BatchNorm1d(critic_in_dim),
             nn.Linear(critic_in_dim, hidden_dim),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(hidden_dim, action_dim),
             nn.Tanh())
             for _ in range(kwargs['n_ag'])])
         self.actor_l_target = nn.ModuleList([nn.Sequential(
             # nn.BatchNorm1d(critic_in_dim),
             nn.Linear(critic_in_dim, hidden_dim),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(hidden_dim, action_dim),
             nn.Tanh())
             for _ in range(kwargs['n_ag'])])
