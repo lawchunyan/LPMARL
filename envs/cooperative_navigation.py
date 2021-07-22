@@ -95,6 +95,7 @@ class Scenario(BaseScenario):
         #         if self.is_collision(a, agent):
         #             rew -= 1
         # return rew
+        reward = 0
 
         n_touch = 0
         for l in world.landmarks:
@@ -109,7 +110,7 @@ class Scenario(BaseScenario):
                 world.num_hit += 1
 
         if n_touch == len(world.landmarks):
-            reward += 100
+            reward += 50
 
         # for a in world.agents:
         #     if a != agent and self.is_collision(a, agent):
