@@ -3,13 +3,14 @@ import wandb
 import os
 
 from datetime import date
-from src.agents.LPagent_hier_maddpg import DDPGLPAgent
-# from src.agents.LPagent_hier_2 import DDPGLPAgent
-from src.utils.make_graph import make_graph
+# from src.agents.LPagent_hier_maddpg import DDPGLPAgent
+from src.agents.LPagent_hier_2 import DDPGLPAgent
+# from src.utils.make_graph import make_graph
+from src.utils.action_utils import change_to_one_hot
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
 TRAIN = True
-use_wandb = True
+use_wandb = False
 
 n_ag = 3
 num_episodes = 50000
@@ -88,8 +89,8 @@ for e in range(num_episodes):
         action, high_action, low_action = agent.get_action(state, landmark_state, explore=True,
                                                            get_high_action=get_high_action)
 
-        std_action += action.std(axis=0)
-        next_state, reward, terminated, _ = env.step(action)
+        # std_action += action.std(axis=0)
+        next_state, reward, terminated, _ = env.step(change_to_one_hot(action))
         low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
         episode_reward += sum(reward)
@@ -121,10 +122,10 @@ for e in range(num_episodes):
     if e % 1000 == 0 and e > 5000:
         agent.save(curr_dir, e)
 
-    for n in agent.noise:
-        n.reset()
+    # for n in agent.noise:
+    #     n.reset()
 
-# if TRAIN:
-#     agent.save(curr_dir, num_episodes)
+if TRAIN:
+    agent.save(curr_dir, num_episodes)
 
 env.close()

@@ -82,40 +82,40 @@ class Scenario(BaseScenario):
 
     def reward(self, agent, world):
         # agents only recieves global reward
-        rew = 0
-        for l in world.landmarks:
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            rew -= min(dists)
-
-        if min([np.sqrt(np.sum(np.squre(agent.state.p_pos - l.state.p_pos))) for l in world.landmarks]) < 0.5:
-            world.num_hit += 1
-
-        if agent.collide:
-            for a in world.agents:
-                if self.is_collision(a, agent):
-                    rew -= 1
-        return rew
-
-        # n_touch = 0
+        # rew = 0
         # for l in world.landmarks:
-        #     landmark_pos = l.state.p_pos
-        #     min_dist_to_l = 100
+        #     dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
+        #     rew -= min(dists)
+        #
+        # if min([np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))) for l in world.landmarks]) < 0.5:
+        #     world.num_hit += 1
+        #
+        # if agent.collide:
         #     for a in world.agents:
-        #         ag_pos = a.state.p_pos
-        #         min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
-        #
-        #     if min_dist_to_l < 0.5:
-        #         n_touch += 1
-        #         world.num_hit += 1
-        #
-        # if n_touch == len(world.landmarks):
-        #     reward += 100
-        #
-        # # for a in world.agents:
-        # #     if a != agent and self.is_collision(a, agent):
-        # #         reward -= 10
-        #
-        # return reward
+        #         if self.is_collision(a, agent):
+        #             rew -= 1
+        # return rew
+
+        n_touch = 0
+        for l in world.landmarks:
+            landmark_pos = l.state.p_pos
+            min_dist_to_l = 100
+            for a in world.agents:
+                ag_pos = a.state.p_pos
+                min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
+
+            if min_dist_to_l < 0.5:
+                n_touch += 1
+                world.num_hit += 1
+
+        if n_touch == len(world.landmarks):
+            reward += 100
+
+        # for a in world.agents:
+        #     if a != agent and self.is_collision(a, agent):
+        #         reward -= 10
+
+        return reward
 
     def reward_prev(self, agent, world):
         # Agents are rewarded based on distance to each landmark, penalized for collisions
