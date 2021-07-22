@@ -105,7 +105,7 @@ class DDPGLPAgent(LPAgent):
             argmax_action = low_qs.argmax(-1)
             random_action = random_qs.argmax(-1)
 
-            random_val = torch.rand(argmax_action.shape)
+            random_val = torch.rand(argmax_action.shape).to(self.device)
             select_random = random_val < self.epsilon
 
             out_action = select_random * random_action + ~select_random * argmax_action
@@ -113,6 +113,7 @@ class DDPGLPAgent(LPAgent):
         else:
             out_action = low_qs.argmax(-1)
 
+        self.epsilon = min(self.epsilon-self.epsilon_decay, self.epsilon_min)
         return out_action
 
 

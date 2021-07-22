@@ -2,6 +2,7 @@ import numpy as np
 
 
 def change_to_one_hot(actions, action_dim=5):
+    actions = actions.cpu().detach().numpy()
     identity = np.eye(action_dim)
     return identity[actions]
 
