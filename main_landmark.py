@@ -14,7 +14,7 @@ use_wandb = True
 n_ag = 3
 num_episodes = 50000
 coeff = 1.2
-max_t = 30
+max_t = 25
 
 agent_config = {
     "state_dim": 4 + 2 * (2 * n_ag - 1),
@@ -32,9 +32,9 @@ agent_config = {
     "gamma": 0.95,
     "hidden_dim": 32,
     "loss_ftn": torch.nn.MSELoss(),
-    "lr": 0.01,
+    "lr": 0.001,
     'memory_type': 'sample',
-    'target_tau': 0.005,
+    'target_tau': 0.001,
     'target_update_interval': 100,
     'coeff': coeff,
     "sc2": False
@@ -100,13 +100,15 @@ for e in range(num_episodes):
                    0,
                    reward)
         state = next_state
-        if agent.can_fit() and TRAIN and ep_len % 3 == 0:
-            n_fit += 1
-            ret_dict = agent.fit(n_fit)
-            wandb.log(ret_dict)
 
         if ep_len > max_t:
             break
+
+    if agent.can_fit() and TRAIN == 0:
+        for _ in range(4):
+            n_fit += 1
+            ret_dict = agent.fit(n_fit)
+            wandb.log(ret_dict)
 
     if use_wandb:
         wandb.log({'reward': episode_reward,

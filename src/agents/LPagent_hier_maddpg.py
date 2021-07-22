@@ -251,7 +251,7 @@ class DDPGLPAgent(LPAgent):
         for i in range(self.n_ag):
             actor_in = actor_inp[:, i]
             loss_a_l = -self.critic_l(torch.cat([actor_in, self.actor_l[i](actor_in)], dim=-1))
-            loss_a_l = loss_a_l.mean()
+            loss_a_l = loss_a_l.mean() / 100
             self.actor_optimizer[i].zero_grad()
             loss_a_l.backward()
             torch.nn.utils.clip_grad_norm_(self.actor_l[i].parameters(), 0.5)
