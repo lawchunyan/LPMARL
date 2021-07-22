@@ -93,7 +93,7 @@ for e in range(num_episodes):
         low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
         episode_reward += sum(reward)
-        reward = [sum(reward) / n_ag for r in reward]
+        # reward = [sum(reward) / n_ag for r in reward]
         episode_reward_l += sum(low_reward)
 
         agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated,
@@ -104,7 +104,7 @@ for e in range(num_episodes):
         if ep_len > max_t:
             break
 
-    if agent.can_fit() and TRAIN == 0:
+    if agent.can_fit() and TRAIN:
         for _ in range(4):
             n_fit += 1
             ret_dict = agent.fit(n_fit)
