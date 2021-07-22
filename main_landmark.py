@@ -14,7 +14,7 @@ use_wandb = True
 n_ag = 3
 num_episodes = 50000
 coeff = 1.2
-max_t = 25
+max_t = 50
 
 agent_config = {
     "state_dim": 4 + 2 * (2 * n_ag - 1),
@@ -23,7 +23,7 @@ agent_config = {
     "action_dim": 5,
     "en_feat_dim": 2,
     'state_shape': (n_ag),
-    "memory_len": 500000,
+    "memory_len": 100000,
     "batch_size": 100,
     "train_start": 100,
     "epsilon_start": 1.0,
@@ -32,7 +32,7 @@ agent_config = {
     "gamma": 0.95,
     "hidden_dim": 32,
     "loss_ftn": torch.nn.MSELoss(),
-    "lr": 0.001,
+    "lr": 0.01,
     'memory_type': 'sample',
     'target_tau': 0.001,
     'target_update_interval': 100,
