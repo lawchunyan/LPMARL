@@ -36,9 +36,13 @@ class DDPGLPAgent(LPAgent):
 
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                       nn.LeakyReLU(),
+                                      nn.Linear(hidden_dim, hidden_dim),
+                                      nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, 1),
                                       )
         self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
+                                             nn.LeakyReLU(),
+                                             nn.Linear(hidden_dim, hidden_dim),
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              )
@@ -251,7 +255,7 @@ class DDPGLPAgent(LPAgent):
         for i in range(self.n_ag):
             actor_in = actor_inp[:, i]
             loss_a_l = -self.critic_l(torch.cat([actor_in, self.actor_l[i](actor_in)], dim=-1))
-            loss_a_l = loss_a_l.mean() / 100
+            loss_a_l = loss_a_l.mean()
             self.actor_optimizer[i].zero_grad()
             loss_a_l.backward()
             torch.nn.utils.clip_grad_norm_(self.actor_l[i].parameters(), 0.5)
