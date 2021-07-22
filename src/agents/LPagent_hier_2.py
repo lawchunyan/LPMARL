@@ -116,7 +116,7 @@ class DDPGLPAgent(LPAgent):
         else:
             out_action = low_qs.argmax(-1)
 
-        self.epsilon = min(self.epsilon - self.epsilon_decay, self.epsilon_min)
+        self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
         return out_action
 
         # policies = []

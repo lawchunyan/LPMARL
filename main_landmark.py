@@ -10,7 +10,7 @@ from src.utils.action_utils import change_to_one_hot
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
 TRAIN = True
-use_wandb = False
+use_wandb = True
 
 n_ag = 3
 num_episodes = 50000
