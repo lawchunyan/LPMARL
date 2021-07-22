@@ -240,7 +240,7 @@ class DDPGLPAgent(LPAgent):
             # next_action = self.actor_l_target(inp)
             next_low_critic_in = torch.cat([inp, next_action], dim=-1)
             next_low_q = self.critic_l_target(next_low_critic_in)
-            low_q_target = next_low_q.squeeze() + r_l
+            low_q_target = self.gamma * next_low_q.squeeze() + r_l
 
         loss_c_l = self.loss_ftn(low_qs.squeeze(), low_q_target)
 
