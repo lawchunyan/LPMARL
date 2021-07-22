@@ -45,6 +45,8 @@ class DDPGLPAgent(LPAgent):
         else:
             critic_in_dim = state_dim + en_feat_dim
 
+        self.critic_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
+
         # layers
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
@@ -57,7 +59,6 @@ class DDPGLPAgent(LPAgent):
 
         self.actor_l = nn.ModuleList([Actor(critic_in_dim, action_dim) for _ in range(kwargs['n_ag'])])
         self.actor_l_target = nn.ModuleList([Actor(critic_in_dim, action_dim) for _ in range(kwargs['n_ag'])])
-
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters())
@@ -79,6 +80,8 @@ class DDPGLPAgent(LPAgent):
 
         self.ag_indices = [i for i in range(kwargs['n_ag'])]
         self.en_indices = [i for i in range(kwargs['n_en'])]
+
+        self.batch_norm = True
 
     def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True, get_high_action=True):
         if get_high_action:
@@ -113,10 +116,8 @@ class DDPGLPAgent(LPAgent):
         else:
             out_action = low_qs.argmax(-1)
 
-        self.epsilon = min(self.epsilon-self.epsilon_decay, self.epsilon_min)
+        self.epsilon = min(self.epsilon - self.epsilon_decay, self.epsilon_min)
         return out_action
-
-
 
         # policies = []
         # for i in range(self.n_ag):
@@ -141,6 +142,8 @@ class DDPGLPAgent(LPAgent):
             critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
                          self.en_indices]
             critic_in = torch.stack(critic_in, dim=1)
+            if self.batch_norm:
+                critic_in = self.critic_batch(critic_in.transpose(1, 2)).transpose(1, 2)
         critic_out = self.critic_h(critic_in)
         return critic_out
 
@@ -152,6 +155,9 @@ class DDPGLPAgent(LPAgent):
             critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
                          self.en_indices]
             critic_in = torch.stack(critic_in, dim=1)
+            if self.batch_norm:
+                critic_in = self.critic_batch(critic_in.transpose(1, 2)).transpose(1, 2)
+
         critic_out = self.critic_h_target(critic_in)
         return critic_out
 
@@ -240,6 +246,10 @@ class DDPGLPAgent(LPAgent):
 
         # low critic
         low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
+
+        if self.batch_norm:
+            low_critic_in = self.critic_batch(low_critic_in.transpose(1, 2)).transpose(1, 2)
+
         low_qs = self.critic_l(low_critic_in)
         low_qs_taken = low_qs.gather(-1, a_l.unsqueeze(-1))
 
@@ -251,6 +261,9 @@ class DDPGLPAgent(LPAgent):
 
             # next_action = self.actor_l_target(inp)
             # next_low_critic_in = torch.cat([inp, next_action], dim=-1)
+            if self.batch_norm:
+                inp = self.critic_batch(inp.transpose(1, 2)).transpose(1, 2)
+
             next_low_q = self.critic_l_target(inp)
             next_target_q = next_low_q.max(-1)[0]
             low_q_target = next_target_q * self.gamma + r_l
