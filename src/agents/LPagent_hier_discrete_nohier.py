@@ -48,12 +48,6 @@ class DDPGLPAgent(LPAgent):
         # self.critic_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
 
         # layers
-        self.coeff_layer = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
-                                         nn.LeakyReLU(),
-                                         nn.Linear(hidden_dim, hidden_dim),
-                                         nn.LeakyReLU(),
-                                         nn.Linear(hidden_dim, 1),
-                                         )
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, hidden_dim),
@@ -84,7 +78,6 @@ class DDPGLPAgent(LPAgent):
         # self.noise = [OUNoise(action_dim, epsilon_start=epsilon_start, epsilon_decay=epsilon_decay) for _ in
         #               range(kwargs['n_ag'])]
 
-        self.actor_h_optimizer = Adam(self.coeff_layer.parameters(), lr=lr)
         self.critic_h_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
         self.critic_l_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
         self.actor_optimizer = [Adam(self.actor_l[i].parameters(), lr=lr) for i in range(kwargs['n_ag'])]
@@ -147,17 +140,6 @@ class DDPGLPAgent(LPAgent):
         # l_action = np.array(l_action)
         # return l_action
 
-    def get_coeff(self, agent_obs, enemy_obs, num_ag, num_en):
-        if type(agent_obs) == list:
-            critic_in = [np.concatenate([agent_obs[i], enemy_obs[j]]) for i in self.ag_indices for j in self.en_indices]
-            critic_in = torch.Tensor(critic_in).unsqueeze(0).to(self.device)
-        else:
-            critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
-                         self.en_indices]
-            critic_in = torch.stack(critic_in, dim=1)
-        coeff = self.coeff_layer(critic_in)
-        return coeff
-
     def get_high_qs(self, agent_obs, enemy_obs, num_ag, num_en):
         if type(agent_obs) == list:
             critic_in = [np.concatenate([agent_obs[i], enemy_obs[j]]) for i in self.ag_indices for j in self.en_indices]
@@ -185,38 +167,38 @@ class DDPGLPAgent(LPAgent):
         critic_out = self.critic_h_target(critic_in)
         return critic_out
 
-    def get_high_action(self, agent_obs, enemy_obs, num_ag, num_en, explore=False, return_logit_probs=False,
-                        h_action=None):
-        coeff = self.get_coeff(agent_obs, enemy_obs, num_ag, num_en)  # shape = (batch, n_ag x n_en, 1)
+    def get_high_action(self, agent_obs, enemy_obs, num_ag, num_en, explore=False, h_action=None):
+        critic_out = self.get_high_qs(agent_obs, enemy_obs, num_ag, num_en)  # shape = (batch, n_ag x n_en, 1)
 
-        n_batch = coeff.shape[0]
+        n_batch = critic_out.shape[0]
 
-        if n_batch == 1:
-            solution = self.actor_h.apply(coeff.squeeze())  # .to(self.device)
-        else:
-            solution = torch.stack([self.actor_h.apply(c.squeeze()) for c in coeff])
+        # if n_batch == 1:
+        #     solution = self.actor_h.apply(critic_out.squeeze())  # .to(self.device)
+        # else:
+        #     solution = torch.stack([self.actor_h.apply(c.squeeze()) for c in critic_out])
+        solution = torch.stack([torch.eye(self.n_ag) for _ in range(n_batch)])
 
         # Sample from policy
         policy = solution.reshape(n_batch, num_ag, num_en)  # to prevent - 0
         policy += 1e-4
         policy = policy / policy.sum(-1, keepdims=True)
 
-        if return_logit_probs:
+        if h_action is not None:
             chosen_h_action = h_action
             p_logit = torch.log(policy)
-            # chosen_action_logit_h = p_logit.gather(-1, chosen_h_action.unsqueeze(-1))
+            chosen_action_logit_h = p_logit.gather(-1, chosen_h_action.unsqueeze(-1))
             # chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
         else:
-            chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
-            # chosen_h_action = torch.arange(self.n_ag).reshape(1, -1).to(self.device)
-            p_logit = None
+            # chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
+            chosen_h_action = torch.arange(self.n_ag).reshape(1, -1).to(self.device)
+            chosen_action_logit_h = None
 
         if n_batch == 1:
             chosen_h_en_feat = enemy_obs[chosen_h_action.squeeze().tolist()]
         else:
             chosen_h_en_feat = enemy_obs[torch.arange(n_batch)[:, None], chosen_h_action]
 
-        return chosen_h_action, chosen_h_en_feat, p_logit
+        return chosen_h_action, chosen_h_en_feat, chosen_action_logit_h
 
     def fit(self, e):
         samples = self.memory.sample(self.batch_size)
@@ -244,45 +226,31 @@ class DDPGLPAgent(LPAgent):
 
         n_ag_obs = torch.Tensor(n_ag_obs).to(self.device)
         n_en_obs = torch.Tensor(n_en_obs).to(self.device)
-        r_h = torch.Tensor(high_r).to(self.device)
+        # r_h = torch.Tensor(high_r).to(self.device)
         r_l = torch.Tensor(r).to(self.device)
 
         # high critic
-        high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
-        high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
-        high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
-
-        with torch.no_grad():
-            next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
-            next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
-            next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
-            high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h
-
-        loss_c_h = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
-
-        self.critic_h_optimizer.zero_grad()
-        loss_c_h.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 1)
-        self.critic_h_optimizer.step()
+        # high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
+        # high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+        # high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
+        #
+        # with torch.no_grad():
+        #     next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
+        #     next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+        #     next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
+        #     high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h
+        #
+        # loss_c_h = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
+        #
+        # self.critic_h_optimizer.zero_grad()
+        # loss_c_h.backward()
+        # torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 1)
+        # self.critic_h_optimizer.step()
 
         # high actor: Note: WIP
-        with torch.no_grad():
-            high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
-
-        _, _, logits = self.get_high_action(ag_obs, en_obs, self.n_ag, self.n_en, return_logit_probs=True, h_action=a_h)
-
-        value = (high_qs.reshape(logits.shape[0], logits.shape[1], -1) * logits).sum(-1).detach()
-        logits_taken = logits.gather(-1, a_h.unsqueeze(-1)).squeeze()
-        loss_a_h = (value * logits_taken).mean()
-
         # for i in range(self.batch_size):
         #     curr_sol = self.actor_h.apply(high_qs[i].reshape(-1)).reshape(self.n_ag, -1)
         #     logit_taken = curr_sol.gather(-1, a_h[i].unsqueeze(-1))
-
-        self.actor_h_optimizer.zero_grad()
-        loss_a_h.backward()
-        torch.nn.utils.clip_grad_norm_(self.coeff_layer.parameters(), 0.5)
-        self.actor_h_optimizer.step()
 
         # low critic
         low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
@@ -331,11 +299,11 @@ class DDPGLPAgent(LPAgent):
 
         ret_dict = {
             # 'loss_c_h': loss_c_h.item(),
-            'loss_c_l': loss_c_l.item(),
-            'loss_a_h': loss_a_h.item(),
-            # 'loss_a_l': loss_a_l_total,
-            'high_weight': self.high_weight
-        }
+                    'loss_c_l': loss_c_l.item(),
+                    # 'loss_a_h': loss_a_h.item(),
+                    # 'loss_a_l': loss_a_l_total,
+                    'high_weight': self.high_weight
+                    }
 
         # gradient on high / low action
         if e % self.target_update_interval == 0:
