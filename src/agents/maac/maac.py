@@ -99,8 +99,9 @@ class AttentionSAC(object):
 
         ret_critic = self.update_critic(samples)
         ret_actor = self.update_policies(samples)
+        ret_critic.update(ret_actor)
 
-        return ret_critic.update(ret_actor)
+        return ret_critic
 
     def update_critic(self, sample, soft=True, **kwargs):
         """
