@@ -9,7 +9,7 @@ from src.agents.maac.maac import AttentionSAC
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
 TRAIN = True
-use_wandb = True
+use_wandb = False
 
 n_ag = 3
 num_episodes = 50000
@@ -44,7 +44,6 @@ env = make_env(n_ag, n_ag)
 agent = AttentionSAC.init_from_env(env, **agent_config)
 agent_config['name'] = agent.name
 print(agent.device)
-agent.to(agent.device)
 
 n_fit = 0
 
@@ -65,7 +64,6 @@ if TRAIN and use_wandb:
 
     exp_conf = {'directory': curr_dir}
     wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
-    wandb.watch(agent)
 
 # agent.load_state_dict(torch.load('result/20210601_navigation_LP_2/4000.th'))
 
@@ -103,7 +101,6 @@ for e in range(num_episodes):
 
     if use_wandb:
         wandb.log({'reward': episode_reward,
-                   'epsilon': agent.epsilon,
                    'EP': e,
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len,
