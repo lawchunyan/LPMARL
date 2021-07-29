@@ -243,7 +243,7 @@ class AttentionSAC(object):
     def can_fit(self):
         return len(self.memory) > self.batch_size
 
-    def save(self, filename):
+    def save(self, dirname, e):
         """
         Save trained parameters of all agents into one file
         """
@@ -253,7 +253,8 @@ class AttentionSAC(object):
                      'critic_params': {'critic': self.critic.state_dict(),
                                        'target_critic': self.target_critic.state_dict(),
                                        'critic_optimizer': self.critic_optimizer.state_dict()}}
-        torch.save(save_dict, filename)
+
+        torch.save(save_dict, dirname + "/{}.th".format(e))
 
     @classmethod
     def init_from_env(cls, env, gamma=0.95, tau=0.01,
