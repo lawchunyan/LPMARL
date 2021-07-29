@@ -140,6 +140,7 @@ class LPAgent(BaseAgent):
             chosen_h_action = h_action.to(self.device)
         else:
             chosen_h_action = torch.distributions.categorical.Categorical(policy).sample().to(self.device)
+            chosen_h_action = torch.arange(3).reshape(1, -1).to(self.device)
 
         chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
         chosen_h_en_feat = enemy_obs[chosen_h_action.tolist()]

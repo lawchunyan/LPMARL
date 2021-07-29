@@ -3,8 +3,9 @@ import wandb
 import os
 
 from datetime import date
-from src.agents.LPagent_hier_maddpg import DDPGLPAgent
-from src.utils.make_graph import make_graph
+# from src.agents.LPagent_hier_maddpg import DDPGLPAgent
+# from src.utils.make_graph import make_graph
+from src.agents.maac.maac import AttentionSAC
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 
 TRAIN = True
@@ -40,7 +41,7 @@ agent_config = {
 }
 
 env = make_env(n_ag, n_ag)
-agent = DDPGLPAgent(**agent_config)
+agent = AttentionSAC.init_from_env(env, **agent_config)
 agent_config['name'] = agent.name
 print(agent.device)
 agent.to(agent.device)
@@ -79,33 +80,26 @@ for e in range(num_episodes):
 
     while True:
         ep_len += 1
-        if ep_len == 1:
-            get_high_action = True
-        else:
-            get_high_action = False
 
-        action, high_action, low_action = agent.get_action(state, landmark_state, explore=True,
-                                                           get_high_action=get_high_action)
+        torch_state = [torch.Tensor(state[i]).reshape(1, -1) for i in range(n_ag)]
 
-        std_action += action.std(axis=0)
+        torch_action = agent.step(torch_state, explore=True)
+        action = [a[0].data.numpy() for a in torch_action]
+
         next_state, reward, terminated, _ = env.step(action)
-        low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
         episode_reward += sum(reward)
-        reward = [sum(reward) / n_ag for r in reward]
-        episode_reward_l += sum(low_reward)
 
-        agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated,
-                   0,
-                   reward)
+        agent.memory.push(state, action, reward, next_state, terminated)
         state = next_state
-        if agent.can_fit() and TRAIN and ep_len % 5 == 0:
+
+        if all(terminated):
+            break
+
+        if agent.can_fit() and TRAIN:
             n_fit += 1
             ret_dict = agent.fit(n_fit)
             wandb.log(ret_dict)
-
-        if ep_len > max_t:
-            break
 
     if use_wandb:
         wandb.log({'reward': episode_reward,
@@ -117,9 +111,6 @@ for e in range(num_episodes):
 
     if e % 1000 == 0 and e > 5000:
         agent.save(curr_dir, e)
-
-    for n in agent.noise:
-        n.reset()
 
 # if TRAIN:
 #     agent.save(curr_dir, num_episodes)

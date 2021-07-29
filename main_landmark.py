@@ -4,7 +4,7 @@ import os
 
 from datetime import date
 # from src.agents.LPagent_hier_maddpg import DDPGLPAgent
-from src.agents.LPagent_hier_2 import DDPGLPAgent
+from src.agents.LPagent_hier_discrete import DDPGLPAgent
 # from src.utils.make_graph import make_graph
 from src.utils.action_utils import change_to_one_hot
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
@@ -91,6 +91,7 @@ for e in range(num_episodes):
 
         # std_action += action.std(axis=0)
         next_state, reward, terminated, _ = env.step(change_to_one_hot(action))
+        # next_state, reward, terminated, _ = env.step(action)
         low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
         episode_reward += sum(reward)
@@ -102,11 +103,11 @@ for e in range(num_episodes):
                    reward)
         state = next_state
 
-        if ep_len > max_t:
+        if all(terminated):
             break
 
-    if agent.can_fit() and TRAIN:
-        for _ in range(4):
+        if agent.can_fit() and TRAIN:
+            # for _ in range(4):
             n_fit += 1
             ret_dict = agent.fit(n_fit)
             wandb.log(ret_dict)
@@ -117,6 +118,7 @@ for e in range(num_episodes):
                    'EP': e,
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len,
+                   'ep_len' : ep_len,
                    'reward_l': episode_reward_l})
 
     if e % 1000 == 0 and e > 5000:

@@ -165,7 +165,8 @@ class DDPGLPAgent(LPAgent):
             chosen_action_logit_h = p_logit.gather(-1, chosen_h_action.unsqueeze(-1))
             # chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
         else:
-            chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
+            chosen_h_action = torch.arange(3).reshape(1, -1).to(self.device)
+            # chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
             chosen_action_logit_h = None
 
         # if n_batch == 1:
@@ -205,22 +206,22 @@ class DDPGLPAgent(LPAgent):
         r_l = torch.Tensor(r).to(self.device)
 
         # high critic
-        high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
-        high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
-        high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
-
-        with torch.no_grad():
-            next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
-            next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
-            next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
-            high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h
-
-        loss_c_h = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
-
-        self.critic_h_optimizer.zero_grad()
-        loss_c_h.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
-        self.critic_h_optimizer.step()
+        # high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
+        # high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+        # high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
+        #
+        # with torch.no_grad():
+        #     next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
+        #     next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+        #     next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
+        #     high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h
+        #
+        # loss_c_h = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
+        #
+        # self.critic_h_optimizer.zero_grad()
+        # loss_c_h.backward()
+        # torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
+        # self.critic_h_optimizer.step()
 
         # high actor: Note: WIP
         # for i in range(self.batch_size):
@@ -233,7 +234,8 @@ class DDPGLPAgent(LPAgent):
         low_qs = self.critic_l(low_critic_in)
 
         with torch.no_grad():
-            inp = torch.cat([n_ag_obs, n_en_obs[torch.arange(self.batch_size)[:, None], next_high_action]], dim=-1)
+            # inp = torch.cat([n_ag_obs, n_en_obs[torch.arange(self.batch_size)[:, None], next_high_action]], dim=-1)
+            inp = torch.cat([n_ag_obs, n_en_obs], dim=-1)  #
             next_actions = [self.actor_l_target[i](inp[:, i]) for i in range(self.n_ag)]
             next_action = torch.stack(next_actions, dim=1)
 
@@ -262,7 +264,8 @@ class DDPGLPAgent(LPAgent):
             self.actor_optimizer[i].step()
             loss_a_l_total += loss_a_l.item()
 
-        ret_dict = {'loss_c_h': loss_c_h.item(),
+        ret_dict = {
+            # 'loss_c_h': loss_c_h.item(),
                     'loss_c_l': loss_c_l.item(),
                     # 'loss_a_h': loss_a_h.item(),
                     'loss_a_l': loss_a_l_total,

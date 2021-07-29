@@ -50,9 +50,13 @@ class DDPGLPAgent(LPAgent):
         # layers
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
+                                      nn.Linear(hidden_dim, hidden_dim),
+                                      nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, action_dim),
                                       )
         self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
+                                             nn.LeakyReLU(),
+                                             nn.Linear(hidden_dim, hidden_dim),
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, action_dim),
                                              )
@@ -81,7 +85,7 @@ class DDPGLPAgent(LPAgent):
         self.ag_indices = [i for i in range(kwargs['n_ag'])]
         self.en_indices = [i for i in range(kwargs['n_en'])]
 
-        self.batch_norm = True
+        self.batch_norm = False
 
     def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True, get_high_action=True):
         if get_high_action:
@@ -166,10 +170,11 @@ class DDPGLPAgent(LPAgent):
 
         n_batch = critic_out.shape[0]
 
-        if n_batch == 1:
-            solution = self.actor_h.apply(critic_out.squeeze())  # .to(self.device)
-        else:
-            solution = torch.stack([self.actor_h.apply(c.squeeze()) for c in critic_out])
+        # if n_batch == 1:
+        #     solution = self.actor_h.apply(critic_out.squeeze())  # .to(self.device)
+        # else:
+        #     solution = torch.stack([self.actor_h.apply(c.squeeze()) for c in critic_out])
+        solution = torch.stack([torch.eye(self.n_ag) for _ in range(n_batch)])
 
         # Sample from policy
         policy = solution.reshape(n_batch, num_ag, num_en)  # to prevent - 0
@@ -183,7 +188,7 @@ class DDPGLPAgent(LPAgent):
             # chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
         else:
             # chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
-            chosen_h_action = torch.arange(3).reshape(1, -1).to(self.device)
+            chosen_h_action = torch.arange(self.n_ag).reshape(1, -1).to(self.device)
             chosen_action_logit_h = None
 
         if n_batch == 1:
@@ -219,7 +224,7 @@ class DDPGLPAgent(LPAgent):
 
         n_ag_obs = torch.Tensor(n_ag_obs).to(self.device)
         n_en_obs = torch.Tensor(n_en_obs).to(self.device)
-        r_h = torch.Tensor(high_r).to(self.device)
+        # r_h = torch.Tensor(high_r).to(self.device)
         r_l = torch.Tensor(r).to(self.device)
 
         # high critic
@@ -238,7 +243,7 @@ class DDPGLPAgent(LPAgent):
         # self.critic_h_optimizer.zero_grad()
         # loss_c_h.backward()
         # torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 1)
-        self.critic_h_optimizer.step()
+        # self.critic_h_optimizer.step()
 
         # high actor: Note: WIP
         # for i in range(self.batch_size):
@@ -255,7 +260,8 @@ class DDPGLPAgent(LPAgent):
         low_qs_taken = low_qs.gather(-1, a_l.unsqueeze(-1))
 
         with torch.no_grad():
-            inp = torch.cat([n_ag_obs, n_en_obs[torch.arange(self.batch_size)[:, None], next_high_action]], dim=-1)
+            # inp = torch.cat([n_ag_obs, n_en_obs[torch.arange(self.batch_size)[:, None], next_high_action]], dim=-1)
+            inp = torch.cat([n_ag_obs, n_en_obs], dim=-1)  #
             # target_probs = [self.actor_l_target[i](inp[:, i]) for i in range(self.n_ag)]
             # next_action = next_probs
             # next_action = torch.stack(next_actions, dim=1)
@@ -289,7 +295,8 @@ class DDPGLPAgent(LPAgent):
         #     self.actor_optimizer[i].step()
         #     loss_a_l_total += loss_a_l.item()
 
-        ret_dict = {'loss_c_h': loss_c_h.item(),
+        ret_dict = {
+            # 'loss_c_h': loss_c_h.item(),
                     'loss_c_l': loss_c_l.item(),
                     # 'loss_a_h': loss_a_h.item(),
                     # 'loss_a_l': loss_a_l_total,
