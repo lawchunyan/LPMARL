@@ -272,8 +272,11 @@ class DDPGLPAgent(LPAgent):
         _, _, logits = self.get_high_action(ag_obs, en_obs, self.n_ag, self.n_en, return_logit_probs=True, h_action=a_h)
 
         value = (high_qs.reshape(logits.shape[0], logits.shape[1], -1) * logits).sum(-1).detach()
+        taken_q = high_qs.reshape(-1, self.n_ag, self.n_en).gather(-1, a_h.unsqueeze(-1)).detach()
+        pol_target = taken_q.squeeze() - value
+
         logits_taken = logits.gather(-1, a_h.unsqueeze(-1)).squeeze()
-        loss_a_h = (value * logits_taken).mean()
+        loss_a_h = (-pol_target * logits_taken).mean()
 
         # for i in range(self.batch_size):
         #     curr_sol = self.actor_h.apply(high_qs[i].reshape(-1)).reshape(self.n_ag, -1)

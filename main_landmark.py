@@ -106,11 +106,11 @@ for e in range(num_episodes):
         if all(terminated):
             break
 
-        if agent.can_fit() and TRAIN:
-            # for _ in range(4):
-            n_fit += 1
-            ret_dict = agent.fit(n_fit)
-            wandb.log(ret_dict)
+    if agent.can_fit() and TRAIN:
+        # for _ in range(4):
+        n_fit += 1
+        ret_dict = agent.fit(n_fit)
+        wandb.log(ret_dict)
 
     if use_wandb:
         wandb.log({'reward': episode_reward,

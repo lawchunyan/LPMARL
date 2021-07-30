@@ -45,7 +45,7 @@ class DDPGLPAgent(LPAgent):
         else:
             critic_in_dim = state_dim + en_feat_dim
 
-        # self.critic_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
+        self.critic_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
 
         # layers
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),

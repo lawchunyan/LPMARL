@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+
 # from utils.misc import onehot_from_logits, categorical_sample
 
 
@@ -40,7 +42,7 @@ class BasePolicy(nn.Module):
         onehot = None
         if type(X) is tuple:
             X, onehot = X
-        if X.shape[0] == 1 :
+        if X.shape[0] == 1:
             inp = X
         else:
             inp = self.in_fn(X)  # don't batchnorm onehot
@@ -85,11 +87,17 @@ class DiscretePolicy(BasePolicy):
             return rets[0]
         return rets
 
+
 def categorical_sample(probs):
     int_acs = torch.multinomial(probs, 1)
     acs = torch.zeros(*probs.shape).to(probs.device)
     acs = acs.scatter_(1, int_acs, 1)
     return int_acs, acs
 
+
 def onehot_from_logits(probs):
-    pass
+    out_logit = torch.zeros_like(probs)
+    argmax_action = out_logit.argmax(dim=-1)
+    out_logit[torch.arange(out_logit.shape[0]), argmax_action] = 1
+
+    return out_logit
