@@ -13,7 +13,7 @@ use_wandb = True
 
 n_ag = 3
 num_episodes = 50000
-coeff = 1.2
+coeff = 1.1
 max_t = 50
 
 agent_config = {

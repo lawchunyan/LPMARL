@@ -247,6 +247,8 @@ class DDPGLPAgent(LPAgent):
         r_h = torch.Tensor(high_r).to(self.device)
         r_l = torch.Tensor(r).to(self.device)
 
+        t = torch.Tensor(t).to(self.device)
+
         # high critic
         high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
         high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
@@ -256,7 +258,7 @@ class DDPGLPAgent(LPAgent):
             next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
             next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
             next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
-            high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h
+            high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h * (1 - t)
 
         loss_c_h = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
 
@@ -310,7 +312,7 @@ class DDPGLPAgent(LPAgent):
 
             next_low_q = self.critic_l_target(inp)
             next_target_q = next_low_q.max(-1)[0]
-            low_q_target = next_target_q * self.gamma + r_l
+            low_q_target = next_target_q * self.gamma * (1 - t) + r_l
 
         loss_c_l = self.loss_ftn(low_qs_taken.squeeze(), low_q_target)
 
