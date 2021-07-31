@@ -312,9 +312,9 @@ class DDPGLPAgent(LPAgent):
 
             next_low_q = self.critic_l_target(inp)
             next_target_q = next_low_q.max(-1)[0]
-            low_q_target = next_target_q * self.gamma * (1 - t) + r_l
+            low_q_target = next_target_q.sum(-1) * self.gamma * (1 - t[:, 0]) + r_l[:, 0]
 
-        loss_c_l = self.loss_ftn(low_qs_taken.squeeze(), low_q_target)
+        loss_c_l = self.loss_ftn(low_qs_taken.squeeze().sum(-1), low_q_target)
 
         self.critic_l_optimizer.zero_grad()
         loss_c_l.backward()
