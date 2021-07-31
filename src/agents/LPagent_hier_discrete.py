@@ -258,9 +258,9 @@ class DDPGLPAgent(LPAgent):
             next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
             next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
             next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
-            high_q_target = self.gamma * next_argmax_high_q.squeeze() + r_h * (1 - t)
+            high_q_target = self.gamma * next_argmax_high_q.squeeze().sum(-1) + r_h[:, 0] * (1 - t[:, 0])
 
-        loss_c_h = self.loss_ftn(high_qs_taken.squeeze(), high_q_target)
+        loss_c_h = self.loss_ftn(high_qs_taken.squeeze().sum(-1), high_q_target)
 
         self.critic_h_optimizer.zero_grad()
         loss_c_h.backward()
