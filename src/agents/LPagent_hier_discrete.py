@@ -198,7 +198,8 @@ class DDPGLPAgent(LPAgent):
 
         # Sample from policy
         policy = solution.reshape(n_batch, num_ag, num_en)  # to prevent - 0
-        policy += 1 * self.epsilon
+        if explore:
+            policy += self.epsilon
         policy = policy / policy.sum(-1, keepdims=True)
 
         if return_logit_probs:
