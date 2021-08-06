@@ -28,7 +28,7 @@ agent_config = {
     "batch_size": 100,
     "train_start": 100,
     "epsilon_start": 1.0,
-    "epsilon_decay": 1e-6,
+    "epsilon_decay": 5e-7,
     "mixer": True,
     "gamma": 0.95,
     "hidden_dim": 32,
@@ -118,7 +118,7 @@ for e in range(num_episodes):
                    'EP': e,
                    'num_hit': env.world.num_hit,
                    'std_action': std_action / ep_len,
-                   'ep_len' : ep_len,
+                   'ep_len': ep_len,
                    'reward_l': episode_reward_l})
 
     if e % 1000 == 0 and e > 5000:
