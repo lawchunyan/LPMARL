@@ -28,7 +28,7 @@ agent_config = {
     "batch_size": 100,
     "train_start": 100,
     "epsilon_start": 1.0,
-    "epsilon_decay": 5e-7,
+    "epsilon_decay": 1e-6,
     "mixer": True,
     "gamma": 0.95,
     "hidden_dim": 32,
@@ -106,11 +106,11 @@ for e in range(num_episodes):
         if all(terminated):
             break
 
-    if agent.can_fit() and TRAIN:
-        # for _ in range(4):
-        n_fit += 1
-        ret_dict = agent.fit(n_fit)
-        wandb.log(ret_dict)
+        if agent.can_fit() and TRAIN:
+            # for _ in range(4):
+            n_fit += 1
+            ret_dict = agent.fit(n_fit)
+            wandb.log(ret_dict)
 
     if use_wandb:
         wandb.log({'reward': episode_reward,
