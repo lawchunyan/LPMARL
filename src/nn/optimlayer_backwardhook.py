@@ -91,7 +91,7 @@ solver = MatchginSolver(3, 3, 1.1, device)
 #     def forward(self, coeff):
 #         return self.matchinglayer.apply(coeff)
 
-lambda_val = 10
+lambda_val = 1
 
 
 class EdgeMatching_autograd(torch.autograd.Function):
