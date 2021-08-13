@@ -81,8 +81,8 @@ class Scenario(BaseScenario):
         dist_min = agent1.size + agent2.size
         return True if dist < dist_min else False
 
-    def reward(self, agent, world):
-        # agents only recieves global reward
+    def reward_sparse(self, agent, world):
+        # agents only receive global reward
         # rew = 0
         # for l in world.landmarks:
         #     dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
@@ -120,28 +120,28 @@ class Scenario(BaseScenario):
 
         return reward
 
-    def reward_prev(self, agent, world):
+    def reward_dense(self, agent, world):
         # Agents are rewarded based on distance to each landmark, penalized for collisions
         rew = 0
         min_dist = 5000
 
         # dist rwd
         for l in world.landmarks:
-            # dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            # rew -= min(dists)
+            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
+            rew -= min(dists)
             min_dist = min(min_dist, np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))))
 
-        rew -= min_dist * 0.1
-
+        # rew -= min_dist * 0.1
+        #
         if min_dist < 0.5:
-            rew += 10
+            # rew += 10
             world.num_hit += 1
 
         # rwd for collision
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent) and a != agent:
-                    rew -= 10
+                    rew -= 1
 
         # rwd for boundary
         def bound(x):
@@ -191,7 +191,7 @@ def make_env(n_ag, n_en):
     world = scenario.make_world(n_ag, n_en)
 
     # create multiagent environment
-    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, done_callback=scenario.done)
+    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward_dense, scenario.observation, done_callback=scenario.done)
     env.shared_reward = False
 
     return env
