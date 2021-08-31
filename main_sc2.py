@@ -6,6 +6,7 @@ from datetime import date
 from envs.sc2_env_wrapper import StarCraft2Env
 # from smac.env import StarCraft2Env
 from src.agents.LPagent_hier_discrete import LPAgent
+
 # from src.agents.Qmixagent import QmixAgent
 
 TRAIN = True
@@ -20,7 +21,7 @@ agent_config = {"state_dim": state_dim,
                 "n_ag": env.n_agents,
                 "n_en": env.n_enemies,
                 "action_dim": 5,
-                "memory_len": 300,
+                "memory_len": 1000,
                 "batch_size": 50,
                 "train_start": 100,
                 "epsilon_start": 1.0,
@@ -63,6 +64,7 @@ for e in range(num_episodes):
     episode_reward = 0
     ep_len = 0
     prev_killed_enemies = env.death_tracker_enemy.sum()
+    high_action = None
 
     while not terminated:
         ep_len += 1
@@ -72,7 +74,7 @@ for e in range(num_episodes):
 
         avail_actions = env.get_avail_actions()
 
-        action, high_action, low_action = agent.get_action(agent_obs, enemy_obs, avail_actions, high_action=None)
+        action, high_action, low_action = agent.get_action(agent_obs, enemy_obs, avail_actions, high_action=high_action)
 
         reward, terminated, _ = env.step(action)
 
@@ -82,10 +84,15 @@ for e in range(num_episodes):
         n_enemy_obs = next_state[env.n_agents:]
 
         high_r = 20 if env.death_tracker_enemy.sum() == env.n_enemies else 0
-        reward = env.death_tracker_enemy[high_action.squeeze()] * 10 * env.death_tracker_ally
+        reward = env.death_tracker_enemy[high_action.squeeze()] * 10 * (1 - env.death_tracker_ally)
 
-        agent.push(agent_obs, enemy_obs, high_action, low_action, reward, n_agent_obs, n_enemy_obs, terminated, avail_actions, high_r)
+        agent.push(agent_obs, enemy_obs, high_action, low_action, reward, n_agent_obs, n_enemy_obs, terminated,
+                   avail_actions, high_r)
         episode_reward += sum(reward)
+
+        if prev_killed_enemies != next_killed_enemies:
+            high_action = None
+
         prev_killed_enemies = next_killed_enemies
 
     if e % 500 == 0:

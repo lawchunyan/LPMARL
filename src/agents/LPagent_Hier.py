@@ -87,8 +87,10 @@ class LPAgent(BaseAgent):
         if high_action is None:
             high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                                  self.n_en, explore=explore)
-        # else:
-        #     high_action,
+            self.high_feat = high_feat
+
+        high_feat = self.high_feat
+
         if self.sc2:
             avail_action_mask = self.get_sc2_low_action_mask(avail_actions, high_action)
             low_action = self.get_low_action(agent_obs, high_feat, avail_action_mask, explore=explore)
