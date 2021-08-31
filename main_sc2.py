@@ -5,16 +5,16 @@ import os
 from datetime import date
 from envs.sc2_env_wrapper import StarCraft2Env
 # from smac.env import StarCraft2Env
-from src.agents.LPagent_Hier import LPAgent
+from src.agents.LPagent_hier_discrete import LPAgent
 # from src.agents.Qmixagent import QmixAgent
 
 TRAIN = True
 use_wandb = True
 
-env = StarCraft2Env(map_name="8m_group_v2", window_size_x=400, window_size_y=300, enemy_obs=True)
+env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300, enemy_obs=True)
 
 state_dim = env.get_obs_size()
-num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
+num_episodes = 2000000  # goal: 2 million timesteps; 15000 episodes approx.
 
 agent_config = {"state_dim": state_dim,
                 "n_ag": env.n_agents,
@@ -24,7 +24,7 @@ agent_config = {"state_dim": state_dim,
                 "batch_size": 50,
                 "train_start": 100,
                 "epsilon_start": 1.0,
-                "epsilon_decay": 1e-5,
+                "epsilon_decay": 1e-6,
                 "gamma": 0.99,
                 "hidden_dim": 32,
                 "loss_ftn": torch.nn.MSELoss(),
@@ -54,7 +54,7 @@ else:
 exp_conf = {'directory': curr_dir}
 
 if use_wandb:
-    wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
+    wandb.init(project='optmarl_sc2', name=exp_name, config=dict(agent_config, **exp_conf))
 
 for e in range(num_episodes):
     env.reset()
@@ -72,7 +72,7 @@ for e in range(num_episodes):
 
         avail_actions = env.get_avail_actions()
 
-        action, high_action, low_action = agent.get_action(agent_obs, enemy_obs, avail_actions)
+        action, high_action, low_action = agent.get_action(agent_obs, enemy_obs, avail_actions, high_action=None)
 
         reward, terminated, _ = env.step(action)
 
@@ -81,10 +81,11 @@ for e in range(num_episodes):
         n_agent_obs = next_state[:env.n_agents]
         n_enemy_obs = next_state[env.n_agents:]
 
-        high_r = (next_killed_enemies - prev_killed_enemies) * 5
+        high_r = 20 if env.death_tracker_enemy.sum() == env.n_enemies else 0
+        reward = env.death_tracker_enemy[high_action.squeeze()] * 10 * env.death_tracker_ally
 
         agent.push(agent_obs, enemy_obs, high_action, low_action, reward, n_agent_obs, n_enemy_obs, terminated, avail_actions, high_r)
-        episode_reward += reward
+        episode_reward += sum(reward)
         prev_killed_enemies = next_killed_enemies
 
     if e % 500 == 0:
@@ -95,7 +96,8 @@ for e in range(num_episodes):
 
     print("EP:{}, R:{}".format(e, episode_reward))
     if use_wandb:
-        wandb.log({'reward': episode_reward,
+        wandb.log({'reward': high_r,
+                   'reward_l': episode_reward,
                    'epsilon': agent.epsilon,
                    'killed_enemy': env.death_tracker_enemy.sum(),
                    'EP': e,

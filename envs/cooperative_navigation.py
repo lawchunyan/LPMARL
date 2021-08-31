@@ -171,9 +171,11 @@ class Scenario(BaseScenario):
         for other in world.agents:
             if other is agent: continue
             other_pos.append(other.state.p_pos - agent.state.p_pos)
+            # comm.append(other.state.p_pos - agent.state.p_pos)
 
         world.t += 1
 
+        # return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
 
     def done(self, agent, world):
@@ -191,7 +193,7 @@ def make_env(n_ag, n_en):
     world = scenario.make_world(n_ag, n_en)
 
     # create multiagent environment
-    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward_dense, scenario.observation, done_callback=scenario.done)
+    env = MultiAgentEnv(world, scenario.reset_world, scenario.reward_sparse, scenario.observation, done_callback=scenario.done)
     env.shared_reward = False
 
     return env

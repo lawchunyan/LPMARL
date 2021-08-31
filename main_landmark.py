@@ -106,7 +106,7 @@ for e in range(num_episodes):
         if all(terminated):
             break
 
-        if agent.can_fit() and TRAIN:
+        if agent.can_fit() and TRAIN and e > 500 and ep_len % 5 == 0:
             # for _ in range(4):
             n_fit += 1
             ret_dict = agent.fit(n_fit)

@@ -70,6 +70,7 @@ class BaseAgent(nn.Module):
 
     @staticmethod
     def hier_action_to_sc2_action(low_action, high_action, avail_actions):
+        high_action = high_action.squeeze()
         out_action = low_action + 1
         out_action[low_action == 5] = high_action[low_action == 5] + 6
 
