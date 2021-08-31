@@ -53,7 +53,7 @@ class ReplayMemory_episode(object):
         self.ep_transitions.append(curr_sample)
         # self.avail_actions.append(curr_sample.avail_action)
 
-        if all(curr_sample.terminated):
+        if curr_sample.terminated:
             # self.avail_actions.append(curr_sample.avail_action)
             self.push_episodes()
 

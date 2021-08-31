@@ -34,19 +34,20 @@ class LPAgent(BaseAgent):
 
         # layers
         self.critic_h = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
-                                      nn.LeakyReLU(),
-                                      nn.Linear(hidden_dim, hidden_dim),
+                                      # nn.LeakyReLU(),
+                                      # nn.Linear(hidden_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, 1),
                                       nn.LeakyReLU())
 
         self.critic_h_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
-                                             nn.LeakyReLU(),
-                                             nn.Linear(hidden_dim, hidden_dim),
+                                             # nn.LeakyReLU(),
+                                             # nn.Linear(hidden_dim, hidden_dim),
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, 1),
                                              nn.LeakyReLU())
         self.actor_h = EdgeMatching_autograd()
+        # self.actor_h = MatchingLayer(3, 3, 6)
         self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, critic_l_out_dim),
@@ -80,13 +81,19 @@ class LPAgent(BaseAgent):
         self.target_update_interval = target_update_interval
         self.sc2 = sc2
 
-    def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True):
-        high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-                                                                             self.n_en, explore=False)
+        self.fixed_action = False
+
+    def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True, high_action=None):
+        if high_action is None:
+            high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
+                                                                                 self.n_en, explore=explore)
+        # else:
+        #     high_action,
         if self.sc2:
             avail_action_mask = self.get_sc2_low_action_mask(avail_actions, high_action)
             low_action = self.get_low_action(agent_obs, high_feat, avail_action_mask, explore=explore)
             out_action = self.hier_action_to_sc2_action(low_action, high_action, avail_actions)
+
         else:
             avail_action_mask = None
             low_action = self.get_low_action(agent_obs, high_feat, None, explore=explore)
@@ -143,6 +150,7 @@ class LPAgent(BaseAgent):
             chosen_h_action = torch.arange(3).reshape(1, -1).to(self.device)
 
         chosen_action_logit_h = torch.log(policy).gather(dim=1, index=chosen_h_action.reshape(-1, 1))
+        # chosen_action_logit_h = None
         chosen_h_en_feat = enemy_obs[chosen_h_action.tolist()]
 
         return chosen_h_action, chosen_h_en_feat, chosen_action_logit_h
@@ -194,8 +202,8 @@ class LPAgent(BaseAgent):
             high_action_taken = a_h[sample_idx].to(self.device)
             low_action = a_l[sample_idx]  # .to(self.device)
             next_avail_action = next_avail_actions[sample_idx]  # .to(self.device)
-            # r_l = torch.Tensor(r[sample_idx])#.to(self.device)
-            r_l = r[sample_idx]
+            r_l = torch.Tensor(r[sample_idx])  # .to(self.device)
+            # r_l = r[sample_idx]
             r_h = high_r[sample_idx]  # .to(self.device)
             # terminated = torch.Tensor(t[sample_idx])#.to(self.device)
             terminated = t[sample_idx]  # .to(self.device)
@@ -241,6 +249,8 @@ class LPAgent(BaseAgent):
 
             low_qs[dead_mask == 1] = 0
             low_q_target[dead_mask == 1] = 0
+            # high_qs[dead_mask == 1] = 0
+            # high_q_target[dead_mask == 1] = 0
 
             loss_critic_h.append(self.loss_ftn(high_qs, high_q_target))
             loss_critic_l.append(self.loss_ftn(low_qs, low_q_target))
@@ -254,6 +264,7 @@ class LPAgent(BaseAgent):
 
         self.optimizer.zero_grad()
         (loss_c_h * self.high_weight + loss_c_l + loss_a_h * 0.1).backward()
+        # (loss_c_l).backward()
         self.optimizer.step()
 
         wandb.log({'loss_c_h': loss_c_h.item(),
