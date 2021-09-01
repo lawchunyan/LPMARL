@@ -6,6 +6,7 @@ from torch.optim import Adam
 from collections import namedtuple
 from src.nn.optimlayer_backwardhook import EdgeMatching_autograd
 from src.agents.LPagent_Hier import LPAgent
+from src.agents.network.actor import Actor
 from src.utils.torch_util import dn
 from src.utils.OUNoise import OUNoise
 
@@ -13,22 +14,6 @@ Transition_LP = namedtuple('Transition_LP_hier',
                            ('state_ag', 'state_en', 'high_action', 'low_action', 'low_reward', 'n_state_ag',
                             'n_state_en',
                             'terminated', 'avail_action', 'high_rwd'))
-
-
-class Actor(nn.Module):
-    def __init__(self, in_dim, out_dim, hidden_dim=32):
-        super(Actor, self).__init__()
-        self.l = nn.Sequential(nn.Linear(in_dim, hidden_dim),
-                               nn.LeakyReLU(),
-                               nn.Linear(hidden_dim, hidden_dim),
-                               nn.LeakyReLU(),
-                               nn.Linear(hidden_dim, out_dim))
-
-    def forward(self, x):
-        out = self.l(x)
-        pol = torch.softmax(out, dim=-1)
-        return pol
-
 
 class DDPGLPAgent(LPAgent):
     def __init__(self, **kwargs):
@@ -85,7 +70,7 @@ class DDPGLPAgent(LPAgent):
         #               range(kwargs['n_ag'])]
 
         self.actor_h_optimizer = Adam(self.coeff_layer.parameters(), lr=lr)
-        self.critic_h_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
+        self.critic_h_optimizer = Adam(list(self.critic_h.parameters()), lr=lr)
         self.critic_l_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
         self.actor_optimizer = [Adam(self.actor_l[i].parameters(), lr=lr) for i in range(kwargs['n_ag'])]
 
