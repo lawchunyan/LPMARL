@@ -21,8 +21,8 @@ agent_config = {"state_dim": state_dim,
                 "n_ag": env.n_agents,
                 "n_en": env.n_enemies,
                 "action_dim": 5,
-                "memory_len": 1000,
-                "batch_size": 50,
+                "memory_len": 5000,
+                "batch_size": 32,
                 "train_start": 100,
                 "epsilon_start": 1.0,
                 "epsilon_decay": 1e-6,
@@ -31,7 +31,7 @@ agent_config = {"state_dim": state_dim,
                 "loss_ftn": torch.nn.MSELoss(),
                 "lr": 5e-4,
                 'memory_type': 'ep',
-                'target_tau': 0.5,
+                'target_tau': 0.1,
                 'target_update_interval': 200
                 }
 
@@ -65,14 +65,17 @@ for e in range(num_episodes):
     ep_len = 0
     prev_killed_enemies = env.death_tracker_enemy.sum()
     high_action = None
+    h_transition = True
 
     while not terminated:
         ep_len += 1
         state = env.get_obs()
         agent_obs = state[:env.n_agents]
         enemy_obs = state[env.n_agents:]
-
         avail_actions = env.get_avail_actions()
+
+        if high_action is not None:
+            h_transition = False
 
         action, high_action, low_action = agent.get_action(agent_obs, enemy_obs, avail_actions, high_action=high_action)
 
@@ -87,11 +90,12 @@ for e in range(num_episodes):
         reward = env.death_tracker_enemy[high_action.squeeze()] * 10 * (1 - env.death_tracker_ally)
 
         agent.push(agent_obs, enemy_obs, high_action, low_action, reward, n_agent_obs, n_enemy_obs, terminated,
-                   avail_actions, high_r)
+                   avail_actions, high_r, h_transition)
         episode_reward += sum(reward)
 
         if prev_killed_enemies != next_killed_enemies:
             high_action = None
+            h_transition = True
 
         prev_killed_enemies = next_killed_enemies
 
