@@ -12,7 +12,9 @@ from src.agents.LPagent_hier_discrete import LPAgent
 TRAIN = True
 use_wandb = True
 
-env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300, enemy_obs=True)
+map_name = "5m_vs_6m"
+
+env = StarCraft2Env(map_name=map_name, window_size_x=400, window_size_y=300, enemy_obs=True)
 
 state_dim = env.get_obs_size()
 num_episodes = 2000000  # goal: 2 million timesteps; 15000 episodes approx.
@@ -36,7 +38,7 @@ agent_config = {"state_dim": state_dim,
                 }
 
 agent = LPAgent(**agent_config)
-exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name + '8m_group_v2'
+exp_name = date.today().strftime("%Y%m%d") + "_" + agent.name + map_name
 
 dirName = 'result/{}'.format(exp_name)
 if os.path.exists(dirName):
@@ -64,6 +66,7 @@ for e in range(num_episodes):
     episode_reward = 0
     ep_len = 0
     prev_killed_enemies = env.death_tracker_enemy.sum()
+    prev_death_tracker = env.death_tracker_enemy
     high_action = None
     h_transition = True
 
@@ -82,22 +85,26 @@ for e in range(num_episodes):
         reward, terminated, _ = env.step(action)
 
         next_killed_enemies = env.death_tracker_enemy.sum()
+        next_death_tracker = env.death_tracker_enemy
+
         next_state = env.get_obs()
         n_agent_obs = next_state[:env.n_agents]
         n_enemy_obs = next_state[env.n_agents:]
+        # killed_on_current_timestep = next_death_tracker - prev_death_tracker
 
         high_r = 20 if env.death_tracker_enemy.sum() == env.n_enemies else 0
-        reward = env.death_tracker_enemy[high_action.squeeze()] * 10 * (1 - env.death_tracker_ally)
+        # reward = (next_killed_enemies - prev_killed_enemies) * 10 * (1 - env.death_tracker_ally)
 
         agent.push(agent_obs, enemy_obs, high_action, low_action, reward, n_agent_obs, n_enemy_obs, terminated,
                    avail_actions, high_r, h_transition)
-        episode_reward += sum(reward)
+        episode_reward += reward
 
         if prev_killed_enemies != next_killed_enemies:
             high_action = None
             h_transition = True
 
         prev_killed_enemies = next_killed_enemies
+        prev_death_tracker = next_death_tracker
 
     if e % 500 == 0:
         agent.save(curr_dir, e)

@@ -986,8 +986,8 @@ class StarCraft2Env(MultiAgentEnv):
             move_feats_len += self.n_obs_height
 
         move_feats = np.zeros(move_feats_len, dtype=np.float32)
-        enemy_feats = np.zeros((self.n_enemies, nf_en), dtype=np.float32)
-        ally_feats = np.zeros((self.n_agents - 1, nf_al), dtype=np.float32)
+        enemy_feats = np.zeros((self.n_agents, nf_en), dtype=np.float32)
+        ally_feats = np.zeros((self.n_enemies - 1, nf_al), dtype=np.float32)
         own_feats = np.zeros(nf_own, dtype=np.float32)
 
         if unit.health > 0:  # otherwise dead, return all zeros
@@ -1012,7 +1012,7 @@ class StarCraft2Env(MultiAgentEnv):
                 move_feats[ind:] = self.get_surrounding_height(unit)
 
             # Enemy features
-            for e_id, e_unit in self.enemies.items():
+            for e_id, e_unit in self.agents.items():
                 e_x = e_unit.pos.x
                 e_y = e_unit.pos.y
                 dist = self.distance(x, y, e_x, e_y)

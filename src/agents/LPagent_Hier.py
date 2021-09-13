@@ -9,6 +9,8 @@ from src.nn.optimlayer_backwardhook import EdgeMatching_autograd
 from src.agents.baseagent import BaseAgent
 from src.agents.network.actor import Actor
 from src.nn.MultiLayeredPerceptron import MultiLayeredPerceptron as MLP
+from src.nn.MultiLayeredPerceptron import MLP_sigmoid
+
 from src.utils.torch_util import dn
 
 Transition_LP = namedtuple('Transition_LP_hier',
@@ -37,7 +39,7 @@ class LPAgent(BaseAgent):
         self.critic_h = MLP(critic_in_dim, 1, hidden_dims=[hidden_dim, hidden_dim])
         self.critic_h_target = MLP(critic_in_dim, 1, hidden_dims=[hidden_dim, hidden_dim])
 
-        self.coeff_layer = MLP(critic_in_dim, 1, hidden_dims=[hidden_dim, hidden_dim])
+        self.coeff_layer = MLP_sigmoid(critic_in_dim, 1, hidden_dims=[hidden_dim, hidden_dim])
         self.actor_h = EdgeMatching_autograd()
 
         self.critic_l = MLP(critic_in_dim, critic_l_out_dim, hidden_dims=[hidden_dim, hidden_dim])
@@ -54,7 +56,7 @@ class LPAgent(BaseAgent):
         # optimizer
         # self.optimizer = Adam(list(self.parameters()), lr=lr)
 
-        self.actor_h_optimizer = Adam(self.coeff_layer.parameters(), lr=lr)
+        self.actor_h_optimizer = Adam(self.coeff_layer.parameters(), lr=lr * 0.1)
         self.critic_h_optimizer = Adam(self.critic_h.parameters(), lr=lr)
         self.critic_l_optimizer = Adam(self.critic_l.parameters(), lr=lr)
 
@@ -75,7 +77,7 @@ class LPAgent(BaseAgent):
 
     def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True, high_action=None):
         if high_action is None:
-            high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
+            high_action, high_feat, chosen_action_logit_h, _ = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                                  self.n_en, explore=explore)
             self.high_feat = high_feat
 
@@ -106,6 +108,14 @@ class LPAgent(BaseAgent):
             # critic_in = torch.stack(critic_in, dim=1)
             pass
         coeff = self.coeff_layer(critic_in)
+
+        dead_agent = agent_obs[:, -1] == 0
+        dead_enemy = enemy_obs[:, -1] == 0
+        reshaped_coeff = coeff.reshape(num_ag, num_en)
+        reshaped_coeff[dead_agent] = -999
+        reshaped_coeff[:, dead_enemy] = -999
+        coeff = reshaped_coeff.reshape(-1, 1)
+
         return coeff
 
     def get_high_qs(self, agent_obs, enemy_obs, num_ag, num_en):
@@ -180,8 +190,9 @@ class LPAgent(BaseAgent):
             chosen_h_action = None
             chosen_h_en_feat = enemy_obs[h_action.tolist()]
             logit_h = torch.zeros((num_ag, num_en))
+            policy = torch.ones((num_ag, num_en)) / num_en
 
-        return chosen_h_action, chosen_h_en_feat, logit_h
+        return chosen_h_action, chosen_h_en_feat, logit_h, policy
 
     def get_low_qs(self, agent_obs, high_feat):
         action_inp = torch.Tensor(np.concatenate([agent_obs, high_feat], axis=-1)).to(self.device)
@@ -237,7 +248,7 @@ class LPAgent(BaseAgent):
             terminated = t[sample_idx]  # .to(self.device)
 
             # high critic update
-            _, high_en_feat, h_logit = self.get_high_action(agent_obs, enemy_obs,
+            _, high_en_feat, h_logit, policy = self.get_high_action(agent_obs, enemy_obs,
                                                             num_ag=self.n_ag, num_en=self.n_en,
                                                             h_action=high_action_taken,
                                                             explore=False,
@@ -258,8 +269,8 @@ class LPAgent(BaseAgent):
             loss_critic_h.append(self.loss_ftn(high_qs_taken, high_q_target))
 
             # high actor update
-            value = (high_qs * h_logit).sum(-1).detach()
-            pol_target = (high_qs - value).detach()
+            value = (high_qs * policy).sum(-1).detach()
+            pol_target = (high_qs_taken - value.unsqueeze(-1)).detach().squeeze()
             logits_taken = h_logit.gather(-1, high_action_taken.unsqueeze(-1)).squeeze()
             loss_actor_h.append(-pol_target * logits_taken)
 
@@ -297,6 +308,7 @@ class LPAgent(BaseAgent):
 
         self.actor_h_optimizer.zero_grad()
         loss_a_h.backward()
+        torch.nn.utils.clip_grad_norm_(self.coeff_layer.parameters(), 0.5)
         self.actor_h_optimizer.step()
 
         self.critic_l_optimizer.zero_grad()
