@@ -989,6 +989,8 @@ class StarCraft2Env(MultiAgentEnv):
         enemy_feats = np.zeros((self.n_agents, nf_en), dtype=np.float32)
         ally_feats = np.zeros((self.n_enemies - 1, nf_al), dtype=np.float32)
         own_feats = np.zeros(nf_own, dtype=np.float32)
+        if self.n_enemies == 1:
+            ally_feats = np.zeros((self.n_enemies, nf_al), dtype=np.float32)
 
         if unit.health > 0:  # otherwise dead, return all zeros
             x = unit.pos.x
@@ -1022,7 +1024,7 @@ class StarCraft2Env(MultiAgentEnv):
                 ):  # visible and alive
                     # Sight range > shoot range
                     enemy_feats[e_id, 0] = avail_actions[
-                        self.n_actions_no_attack + e_id
+                        self.n_actions_no_attack + 0
                         ]  # available
                     enemy_feats[e_id, 1] = dist / sight_range  # distance
                     enemy_feats[e_id, 2] = (
@@ -1038,7 +1040,7 @@ class StarCraft2Env(MultiAgentEnv):
                                 e_unit.health / e_unit.health_max
                         )  # health
                         ind += 1
-                        if self.shield_bits_enemy > 0:
+                        if self.shield_bits_ally > 0:
                             max_shield = self.unit_max_shield(e_unit)
                             enemy_feats[e_id, ind] = (
                                     e_unit.shield / max_shield

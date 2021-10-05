@@ -79,9 +79,9 @@ class LPAgent(BaseAgent):
         if high_action is None:
             high_action, high_feat, chosen_action_logit_h, _ = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
                                                                                  self.n_en, explore=explore)
-            self.high_feat = high_feat
+            self.high_action = high_action
 
-        high_feat = self.high_feat
+        high_feat = enemy_obs[self.high_action]
 
         if self.sc2:
             avail_action_mask = self.get_sc2_low_action_mask(avail_actions, high_action)
@@ -254,7 +254,7 @@ class LPAgent(BaseAgent):
                                                             explore=False,
                                                             h_transition=h_trans
                                                             )
-
+            #
             high_qs = self.get_high_qs(agent_obs, enemy_obs, num_ag=self.n_ag, num_en=self.n_en)
             high_qs = high_qs.reshape(self.n_ag, self.n_en)
             high_qs_taken = high_qs.gather(dim=1, index=high_action_taken.to(self.device).reshape(-1, 1))
@@ -265,14 +265,14 @@ class LPAgent(BaseAgent):
                                                                      self.n_en).reshape(self.n_ag, self.n_en).max(dim=1)
 
                 high_q_target = r_h + self.gamma * next_high_q_val * (1 - terminated)
-
-            loss_critic_h.append(self.loss_ftn(high_qs_taken, high_q_target))
+            if h_trans:
+                loss_critic_h.append(self.loss_ftn(high_qs_taken, high_q_target))
 
             # high actor update
-            value = (high_qs * policy).sum(-1).detach()
-            pol_target = (high_qs_taken - value.unsqueeze(-1)).detach().squeeze()
-            logits_taken = h_logit.gather(-1, high_action_taken.unsqueeze(-1)).squeeze()
-            loss_actor_h.append(-pol_target * logits_taken)
+                value = (high_qs * policy).sum(-1).detach()
+                pol_target = (high_qs_taken - value.unsqueeze(-1)).detach().squeeze()
+                logits_taken = h_logit.gather(-1, high_action_taken.unsqueeze(-1)).squeeze()
+                loss_actor_h.append(-pol_target * logits_taken)
 
             # low critic update
             low_qs = self.get_low_qs(agent_obs, high_en_feat).gather(dim=1,
@@ -281,7 +281,7 @@ class LPAgent(BaseAgent):
                                                                                                            1))
 
             with torch.no_grad():
-                next_low_q_val = self.get_low_qs_target(n_agent_obs, n_enemy_obs[next_high_action])
+                next_low_q_val = self.get_low_qs_target(n_agent_obs, n_enemy_obs[self.high_action])
                 dead_mask = None
                 if self.sc2:
                     next_low_action_mask = self.get_sc2_low_action_mask(next_avail_action, high_action_taken)
@@ -317,12 +317,13 @@ class LPAgent(BaseAgent):
 
         # self.optimizer.zero_grad()
         # (loss_c_h * self.high_weight + loss_c_l + loss_a_h * 0.1).backward()
-        # # (loss_c_l).backward()
+        # (loss_c_l).backward()
         # self.optimizer.step()
 
-        wandb.log({'loss_c_h': loss_c_h.item(),
+        wandb.log({
+            # 'loss_c_h': loss_c_h.item(),
                    'loss_c_l': loss_c_l.item(),
-                   'loss_a_h': loss_a_h.item(),
+                   # 'loss_a_h': loss_a_h.item(),
                    # 'high_weight': self.high_weight
                    })
 

@@ -1,23 +1,23 @@
 import torch.nn
-import wandb
+# import wandb
 import os
 
 from datetime import date
 from envs.combinatorial_env import ZeroShotGroupingEnv
 from src.agents.LPagent_zeroshot import RLAgent
-from src.agents.Qmixagent_zeroshot import QmixAgent
+# from src.agents.Qmixagent_zeroshot import QmixAgent
 from src.agents.DQNAgent import DQNAgent
 
 TRAIN = True
-use_wandb = True
+# use_wandb = True
 
-num_groups = 10
-coeff = 4
+num_groups = [2, 4, 6, 8]
+# coeff = 4
 
 env = ZeroShotGroupingEnv(n_ag=10, n_en=10, enemy_obs=True, global_reward=True, num_optimal_groups=num_groups)
 
 state_dim = env.get_obs_size()
-num_episodes = 20000  # goal: 2 million timesteps; 15000 episodes approx.
+num_episodes = 10000  # goal: 2 million timesteps; 15000 episodes approx.
 
 agent_config = {"state_dim": state_dim,
                 "n_ag": env.n_agents,
@@ -28,23 +28,23 @@ agent_config = {"state_dim": state_dim,
                 "batch_size": 50,
                 "train_start": 100,
                 "epsilon_start": 1.0,
-                "epsilon_decay": 2e-4,
+                "epsilon_decay": 2e-4*2,
                 "mixer": True,
                 "gamma": 0.99,
                 "hidden_dim": 32,
                 "loss_ftn": torch.nn.MSELoss(),
-                "lr": 5e-4,
+                "lr": 1e-3,
                 'memory_type': 'sample',
                 'target_tau': 0.5,
                 'target_update_interval': 200,
-                'coeff': coeff
+                'coeff': None
                 }
 
 agent = RLAgent(**agent_config)
 agent_config['name'] = agent.name
 
 if TRAIN:
-    exp_name = date.today().strftime("%Y%m%d") + "_{}into{}_max{}_".format(env.n_agents, num_groups, coeff) + \
+    exp_name = date.today().strftime("%Y%m%d") + "_{}into{}".format(env.n_agents, num_groups) + \
                agent_config['name']
 
     dirName = 'result/{}'.format(exp_name)
@@ -64,14 +64,16 @@ if TRAIN:
     exp_conf = {'directory': curr_dir,
                 'num_groups': num_groups}
 
-    if use_wandb:
-        wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
+    # if use_wandb:
+    #     wandb.init(project='exp1', name=exp_name, config=dict(agent_config, **exp_conf))
 
 else:
     use_wandb = False
     agent.load_state_dict(torch.load('result/20210524_10into10_max2_DQN/12000.th'))
 
 for e in range(num_episodes):
+    num_groups = 10
+    env = ZeroShotGroupingEnv(n_ag=10, n_en=10, enemy_obs=True, global_reward=True, num_optimal_groups=num_groups)
     env.reset()
 
     terminated = False
@@ -98,7 +100,7 @@ for e in range(num_episodes):
 
     # print("EP:{}, R:{}".format(e, episode_reward))
     if use_wandb:
-        wandb.log({'reward': episode_reward,
+        wandb.log({'rwd': episode_reward,
                    'epsilon': agent.epsilon,
                    'EP': e,
                    'timestep': ep_len})

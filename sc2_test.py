@@ -6,7 +6,7 @@ import torch.nn
 from envs.sc2_env_wrapper import StarCraft2Env
 from src.agents.LPagent_Hier import LPAgent
 
-env = StarCraft2Env(map_name="3m", window_size_x=400, window_size_y=300, enemy_obs=True)
+env = StarCraft2Env(map_name="2m_vs_1z", window_size_x=400, window_size_y=300, enemy_obs=True)
 num_episodes = 100
 
 state_dim = env.get_obs_size()
@@ -34,12 +34,12 @@ agent.epsilon_min = 0.0
 agent.epsilon = 0
 
 # sd = range(54000, 55500, 500)
-sd = [30000]
+sd = [44000]
 
 n_win = 0
 
 for n in sd:
-    agent.load_state_dict(torch.load("result/20210901_LP8m_group_v2_13/{}.th".format(n)))
+    agent.load_state_dict(torch.load("result/20210923_LP2m_vs_1z/{}.th".format(n)))
     n_win = 0
 
     for e in range(num_episodes):
@@ -49,7 +49,8 @@ for n in sd:
         episode_reward = 0
         ep_len = 0
         prev_killed_enemies = 0
-        high_action = None
+        high_action = torch.tensor([0 for _ in range(env.n_agents)])
+        agent.high_action = high_action
 
         while not terminated:
             state = env.get_obs()
@@ -66,12 +67,12 @@ for n in sd:
 
 
             if prev_killed_enemies != next_killed_enemies:
-                print(len(set(high_action.tolist())))
+                # print(len(set(high_action.tolist())))
                 high_action = None
 
             prev_killed_enemies = next_killed_enemies
 
-        if env.death_tracker_enemy.sum() >= 3:
+        if env.death_tracker_enemy.sum() >= env.n_enemies:
             n_win += 1
         # n_win += env.death_tracker_enemy.sum()
 

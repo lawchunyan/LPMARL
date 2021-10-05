@@ -12,7 +12,7 @@ from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_
 TRAIN = True
 use_wandb = True
 
-n_ag = 3
+n_ag = 5
 num_episodes = 50000
 coeff = 1.2
 max_t = 50
@@ -100,13 +100,13 @@ for e in range(num_episodes):
 
         agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated,
                    0,
-                   reward)
+                   reward, get_high_action)
         state = next_state
 
         if all(terminated):
             break
 
-        if agent.can_fit() and TRAIN and e > 500 and ep_len % 5 == 0:
+        if agent.can_fit() and TRAIN and e > 100 and ep_len % 5 == 0:
             # for _ in range(4):
             n_fit += 1
             ret_dict = agent.fit(n_fit)

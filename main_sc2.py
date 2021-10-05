@@ -1,3 +1,4 @@
+import numpy as np
 import torch.nn
 import wandb
 import os
@@ -12,7 +13,7 @@ from src.agents.LPagent_hier_discrete import LPAgent
 TRAIN = True
 use_wandb = True
 
-map_name = "5m_vs_6m"
+map_name = "3s_vs_5z"
 
 env = StarCraft2Env(map_name=map_name, window_size_x=400, window_size_y=300, enemy_obs=True)
 
@@ -65,10 +66,15 @@ for e in range(num_episodes):
     terminated = False
     episode_reward = 0
     ep_len = 0
-    prev_killed_enemies = env.death_tracker_enemy.sum()
+    prev_killed_enemies = env.death_tracker_enemy
     prev_death_tracker = env.death_tracker_enemy
-    high_action = None
-    h_transition = True
+    if env.n_enemies > 1:
+        high_action = None
+        h_transition = True
+    else:
+        high_action = torch.tensor([0 for _ in range(env.n_agents)])
+        agent.high_action = high_action
+        h_transition = False
 
     while not terminated:
         ep_len += 1
@@ -84,7 +90,7 @@ for e in range(num_episodes):
 
         reward, terminated, _ = env.step(action)
 
-        next_killed_enemies = env.death_tracker_enemy.sum()
+        next_killed_enemies = env.death_tracker_enemy
         next_death_tracker = env.death_tracker_enemy
 
         next_state = env.get_obs()
@@ -93,13 +99,14 @@ for e in range(num_episodes):
         # killed_on_current_timestep = next_death_tracker - prev_death_tracker
 
         high_r = 20 if env.death_tracker_enemy.sum() == env.n_enemies else 0
-        # reward = (next_killed_enemies - prev_killed_enemies) * 10 * (1 - env.death_tracker_ally)
+        reward = (next_killed_enemies[high_action] - prev_killed_enemies[high_action]) * 10 * (1 - env.death_tracker_ally)
+        # reward = [reward for _ in range(env.n_agents)]
 
         agent.push(agent_obs, enemy_obs, high_action, low_action, reward, n_agent_obs, n_enemy_obs, terminated,
                    avail_actions, high_r, h_transition)
-        episode_reward += reward
+        episode_reward += sum(reward)
 
-        if prev_killed_enemies != next_killed_enemies:
+        if prev_killed_enemies.sum() != next_killed_enemies.sum():
             high_action = None
             h_transition = True
 

@@ -8,7 +8,7 @@ from collections import namedtuple
 from src.nn.comblayer import MatchingLayer
 from src.agents.baseagent import BaseAgent
 from src.utils.torch_util import dn
-
+from src.nn.optimlayer_backwardhook import EdgeMatching_autograd
 Transition_LP = namedtuple('Transition_LP',
                            ('state', 'action', 'reward'))
 
@@ -37,7 +37,8 @@ class RLAgent(BaseAgent):
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, critic_out_dim),
                                              nn.LeakyReLU())
-        self.actor_h = MatchingLayer(n_ag, coeff=coeff, device=self.device)
+        self.actor_h = EdgeMatching_autograd()
+            # MatchingLayer(n_ag, coeff=coeff, device=self.device)
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
 
@@ -94,7 +95,7 @@ class RLAgent(BaseAgent):
         if pertubation:
             coeff = torch.normal(mean=coeff, std=self.std)
 
-        solution = self.actor_h([coeff.squeeze()])
+        solution = self.actor_h.apply(coeff.squeeze())
 
         # Sample from policy
         policy = solution.reshape(num_ag, num_en)  # to prevent - 0
@@ -105,6 +106,11 @@ class RLAgent(BaseAgent):
             chosen_h_action = h_action
         else:
             chosen_h_action = torch.distributions.categorical.Categorical(policy).sample()
+            # rand_action = torch.randint(0, 10, (10,))
+            # argmax_action = policy.argmax(dim=1)
+            # select_random = np.random.rand(self.n_ag) < self.epsilon
+            # self.epsilon = max(self.epsilon-self.epsilon_decay, 0)
+            # chosen_h_action = rand_action * select_random + argmax_action * ~select_random
 
         return chosen_h_action
 

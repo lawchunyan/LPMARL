@@ -7,13 +7,15 @@ from collections import namedtuple
 from src.nn.optimlayer_backwardhook import EdgeMatching_autograd
 from src.agents.LPagent_Hier import LPAgent
 from src.agents.network.actor import Actor
+from src.nn.MultiLayeredPerceptron import MLP_sigmoid
 from src.utils.torch_util import dn
 from src.utils.OUNoise import OUNoise
 
 Transition_LP = namedtuple('Transition_LP_hier',
                            ('state_ag', 'state_en', 'high_action', 'low_action', 'low_reward', 'n_state_ag',
                             'n_state_en',
-                            'terminated', 'avail_action', 'high_rwd'))
+                            'terminated', 'avail_action', 'high_rwd', 'h_transition'))
+
 
 class DDPGLPAgent(LPAgent):
     def __init__(self, **kwargs):
@@ -52,6 +54,8 @@ class DDPGLPAgent(LPAgent):
                                              nn.Linear(hidden_dim, action_dim),
                                              )
 
+        self.coeff_layer = MLP_sigmoid(critic_in_dim, 1, hidden_dims=[hidden_dim, hidden_dim])
+
         self.actor_h = EdgeMatching_autograd()
 
         self.actor_l = nn.ModuleList([Actor(critic_in_dim, action_dim) for _ in range(kwargs['n_ag'])])
@@ -73,8 +77,6 @@ class DDPGLPAgent(LPAgent):
         self.critic_h_optimizer = Adam(list(self.critic_h.parameters()), lr=lr)
         self.critic_l_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
         self.actor_optimizer = [Adam(self.actor_l[i].parameters(), lr=lr) for i in range(kwargs['n_ag'])]
-
-        self.actor_h = EdgeMatching_autograd()
 
         self.ag_indices = [i for i in range(kwargs['n_ag'])]
         self.en_indices = [i for i in range(kwargs['n_en'])]
@@ -151,8 +153,6 @@ class DDPGLPAgent(LPAgent):
             critic_in = [torch.cat([agent_obs[:, i], enemy_obs[:, j]], dim=-1) for i in self.ag_indices for j in
                          self.en_indices]
             critic_in = torch.stack(critic_in, dim=1)
-            if self.batch_norm:
-                critic_in = self.critic_batch(critic_in.transpose(1, 2)).transpose(1, 2)
         critic_out = self.critic_h(critic_in)
         return critic_out
 
@@ -175,7 +175,6 @@ class DDPGLPAgent(LPAgent):
         coeff = self.get_coeff(agent_obs, enemy_obs, num_ag, num_en)  # shape = (batch, n_ag x n_en, 1)
 
         n_batch = coeff.shape[0]
-
         if n_batch == 1:
             solution = self.actor_h.apply(coeff.squeeze())  # .to(self.device)
         else:
@@ -199,7 +198,7 @@ class DDPGLPAgent(LPAgent):
             p_logit = None
 
         if n_batch == 1:
-            chosen_h_en_feat = enemy_obs[chosen_h_action.squeeze().tolist()]
+            chosen_h_en_feat = enemy_obs.squeeze()[chosen_h_action.squeeze().tolist()]
         else:
             chosen_h_en_feat = enemy_obs[torch.arange(n_batch)[:, None], chosen_h_action]
 
@@ -217,8 +216,9 @@ class DDPGLPAgent(LPAgent):
         t = []
         avail_actions = []
         high_r = []
+        h_transition = []
 
-        lst = [ag_obs, en_obs, a_h, a_l, r, n_ag_obs, n_en_obs, t, avail_actions, high_r]
+        lst = [ag_obs, en_obs, a_h, a_l, r, n_ag_obs, n_en_obs, t, avail_actions, high_r, h_transition]
 
         for sample in samples:
             for s, l in zip(sample, lst):
@@ -235,30 +235,40 @@ class DDPGLPAgent(LPAgent):
         r_l = torch.Tensor(r).to(self.device)
 
         t = torch.Tensor(t).to(self.device)
+        # h_transition = torch.BoolTensor(h_transition).to(self.device)
 
-        # high critic
+        # loss_c_h = torch.Tensor([0])
+        # loss_a_h = torch.Tensor([0])
+
+        # if sum(h_transition) > 0:
+            # high-actor critic for only high transition
+            # high critic
+            # h_ag = ag_obs[h_transition, :]
+            # h_en = en_obs[h_transition, :]
         high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
         high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
         high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
 
         with torch.no_grad():
-            next_high_qs = self.get_high_qs_target(n_ag_obs, n_en_obs, self.n_ag, self.n_en)
+            next_high_qs = self.get_high_qs_target(ag_obs, en_obs, self.n_ag, self.n_en)
             next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
             next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
-            high_q_target = self.gamma * next_argmax_high_q.squeeze().sum(-1) + r_h[:, 0] * (1 - t[:, 0])
+            high_q_target = self.gamma * next_argmax_high_q.squeeze().sum(-1) + r_h[:, 0] * (
+                        1 - t[:, 0])
 
-        loss_c_h = self.loss_ftn(high_qs_taken.squeeze().sum(-1), high_q_target)
+        loss_c_h = self.loss_ftn(high_qs_taken.squeeze().sum(-1), high_q_target.squeeze())
 
         self.critic_h_optimizer.zero_grad()
         loss_c_h.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
         self.critic_h_optimizer.step()
 
         # high actor: Note: WIP
         with torch.no_grad():
             high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
 
-        _, _, logits = self.get_high_action(ag_obs, en_obs, self.n_ag, self.n_en, return_logit_probs=True, h_action=a_h)
+        _, _, logits = self.get_high_action(ag_obs, en_obs, self.n_ag, self.n_en, return_logit_probs=True,
+                                            h_action=a_h)
 
         value = (high_qs.reshape(logits.shape[0], logits.shape[1], -1) * logits).sum(-1).detach()
         taken_q = high_qs.reshape(-1, self.n_ag, self.n_en).gather(-1, a_h.unsqueeze(-1)).detach()
@@ -320,9 +330,8 @@ class DDPGLPAgent(LPAgent):
         #     torch.nn.utils.clip_grad_norm_(self.actor_l[i].parameters(), 1)
         #     self.actor_optimizer[i].step()
         #     loss_a_l_total += loss_a_l.item()
-
         ret_dict = {
-            # 'loss_c_h': loss_c_h.item(),
+            'loss_c_h': loss_c_h.item(),
             'loss_c_l': loss_c_l.item(),
             'loss_a_h': loss_a_h.item(),
             # 'loss_a_l': loss_a_l_total,
