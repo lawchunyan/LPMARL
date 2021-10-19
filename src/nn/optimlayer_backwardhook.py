@@ -80,8 +80,7 @@ class MatchginSolver():
         out = self.variables[0].value
         return out
 
-
-solver = MatchginSolver(3, 5, 3, device)
+solver = MatchginSolver(5, 5, 1.1, device)
 
 # class EdgeMatching(nn.Module):
 #     def __init__(self):
@@ -91,7 +90,7 @@ solver = MatchginSolver(3, 5, 3, device)
 #     def forward(self, coeff):
 #         return self.matchinglayer.apply(coeff)
 
-lambda_val = 20
+lambda_val = 50
 
 
 class EdgeMatching_autograd(torch.autograd.Function):

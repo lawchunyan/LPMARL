@@ -35,31 +35,27 @@ class DDPGLPAgent(LPAgent):
         # self.critic_batch = nn.BatchNorm1d(critic_in_dim, affine=False)
 
         # layers
-        self.coeff_layer = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
-                                         nn.LeakyReLU(),
-                                         nn.Linear(hidden_dim, hidden_dim),
-                                         nn.LeakyReLU(),
-                                         nn.Linear(hidden_dim, 1),
-                                         )
-        self.critic_l = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
+        self.critic_l = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                       nn.LeakyReLU(),
                                       nn.Linear(hidden_dim, hidden_dim),
                                       nn.LeakyReLU(),
-                                      nn.Linear(hidden_dim, action_dim),
+                                      nn.Linear(hidden_dim, 1),
                                       )
-        self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim, hidden_dim),
+        self.critic_l_target = nn.Sequential(nn.Linear(critic_in_dim + action_dim, hidden_dim),
                                              nn.LeakyReLU(),
                                              nn.Linear(hidden_dim, hidden_dim),
                                              nn.LeakyReLU(),
-                                             nn.Linear(hidden_dim, action_dim),
+                                             nn.Linear(hidden_dim, 1),
                                              )
 
         self.coeff_layer = MLP_sigmoid(critic_in_dim, 1, hidden_dims=[hidden_dim, hidden_dim])
 
         self.actor_h = EdgeMatching_autograd()
 
-        self.actor_l = nn.ModuleList([Actor(critic_in_dim, action_dim) for _ in range(kwargs['n_ag'])])
-        self.actor_l_target = nn.ModuleList([Actor(critic_in_dim, action_dim) for _ in range(kwargs['n_ag'])])
+        # self.actor_l = nn.ModuleList([Actor(critic_in_dim, action_dim) for _ in range(kwargs['n_ag'])])
+        # self.actor_l_target = nn.ModuleList([Actor(critic_in_dim, action_dim) for _ in range(kwargs['n_ag'])])
+        self.actor_l = Actor(critic_in_dim, action_dim)
+        self.actor_l_target = Actor(critic_in_dim, action_dim)
 
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters())
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters())
@@ -76,7 +72,7 @@ class DDPGLPAgent(LPAgent):
         self.actor_h_optimizer = Adam(self.coeff_layer.parameters(), lr=lr)
         self.critic_h_optimizer = Adam(list(self.critic_h.parameters()), lr=lr)
         self.critic_l_optimizer = Adam(list(self.critic_l.parameters()), lr=lr)
-        self.actor_optimizer = [Adam(self.actor_l[i].parameters(), lr=lr) for i in range(kwargs['n_ag'])]
+        self.actor_optimizer = Adam(self.actor_l.parameters(), lr=lr)
 
         self.ag_indices = [i for i in range(kwargs['n_ag'])]
         self.en_indices = [i for i in range(kwargs['n_en'])]
@@ -85,10 +81,11 @@ class DDPGLPAgent(LPAgent):
 
     def get_action(self, agent_obs, enemy_obs, avail_actions=None, explore=True, get_high_action=True):
         if get_high_action:
-            high_action, high_feat, chosen_action_logit_h = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
-                                                                                 self.n_en, explore=explore)
+            high_action, high_feat, chosen_action_logit_h, coeff = self.get_high_action(agent_obs, enemy_obs, self.n_ag,
+                                                                                        self.n_en, explore=explore)
             self.high_action = high_action.squeeze().tolist()
             high_action = self.high_action
+            self.coeff = coeff.mean()
         else:
             high_action = self.high_action
             high_feat = enemy_obs[high_action]
@@ -98,41 +95,27 @@ class DDPGLPAgent(LPAgent):
         return out_action, high_action, low_action
 
     def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
-        low_critic_input = np.concatenate([agent_obs, high_feat], axis=-1)
-        low_critic_input = torch.Tensor(low_critic_input).to(self.device)
-        low_qs = self.critic_l(low_critic_input)
+        low_actor_input = np.concatenate([agent_obs, high_feat], axis=-1)
+        low_actor_input = torch.Tensor(low_actor_input).to(self.device)
+        low_policy = self.actor_l(low_actor_input)
 
-        if explore:
-            random_qs = torch.rand_like(low_qs)
+        # if explore:
+        #     random_qs = torch.rand_like(low_qs)
+        #
+        #     argmax_action = low_qs.argmax(-1)
+        #     random_action = random_qs.argmax(-1)
+        #
+        #     random_val = torch.rand(argmax_action.shape).to(self.device)
+        #     select_random = random_val < self.epsilon
+        #
+        #     out_action = select_random * random_action + ~select_random * argmax_action
+        #
+        # else:
+        #     out_action = low_qs.argmax(-1)
 
-            argmax_action = low_qs.argmax(-1)
-            random_action = random_qs.argmax(-1)
-
-            random_val = torch.rand(argmax_action.shape).to(self.device)
-            select_random = random_val < self.epsilon
-
-            out_action = select_random * random_action + ~select_random * argmax_action
-
-        else:
-            out_action = low_qs.argmax(-1)
-
-        self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
-        return out_action
-
-        # policies = []
-        # for i in range(self.n_ag):
-        #     low_action_input = torch.Tensor(np.concatenate([agent_obs[i], high_feat[i]], axis=-1)).to(self.device)
-        #     # policy = self.actor_l[i](low_action_input)
-        #     # policies.append(policy)
-        #     qs = self.critic_l(low_action_input)
-
-        # l_action = []
-        # # if explore:
-        # for i in range(self.n_ag):
-        #     a = torch.distributions.Categorical(policies[i]).sample().item()
-        #     l_action.append(a)
-        # l_action = np.array(l_action)
-        # return l_action
+        # self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
+        # chosen_l_action = torch.distributions.categorical.Categorical(low_policy).sample()
+        return low_policy
 
     def get_coeff(self, agent_obs, enemy_obs, num_ag, num_en):
         if type(agent_obs) == list:
@@ -175,6 +158,8 @@ class DDPGLPAgent(LPAgent):
         coeff = self.get_coeff(agent_obs, enemy_obs, num_ag, num_en)  # shape = (batch, n_ag x n_en, 1)
 
         n_batch = coeff.shape[0]
+        # if torch.isnan(coeff.sum()):
+        #     A = 0
         if n_batch == 1:
             solution = self.actor_h.apply(coeff.squeeze())  # .to(self.device)
         else:
@@ -202,7 +187,7 @@ class DDPGLPAgent(LPAgent):
         else:
             chosen_h_en_feat = enemy_obs[torch.arange(n_batch)[:, None], chosen_h_action]
 
-        return chosen_h_action, chosen_h_en_feat, p_logit
+        return chosen_h_action, chosen_h_en_feat, p_logit, coeff
 
     def fit(self, e):
         samples = self.memory.sample(self.batch_size)
@@ -235,83 +220,70 @@ class DDPGLPAgent(LPAgent):
         r_l = torch.Tensor(r).to(self.device)
 
         t = torch.Tensor(t).to(self.device)
-        # h_transition = torch.BoolTensor(h_transition).to(self.device)
+        h_transition = torch.BoolTensor(h_transition).to(self.device)
 
-        # loss_c_h = torch.Tensor([0])
-        # loss_a_h = torch.Tensor([0])
+        if r_h.sum() != 0:
 
-        # if sum(h_transition) > 0:
-            # high-actor critic for only high transition
-            # high critic
-            # h_ag = ag_obs[h_transition, :]
-            # h_en = en_obs[h_transition, :]
-        high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
-        high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
-        high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
+            high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
+            high_qs = high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+            high_qs_taken = high_qs.gather(index=a_h.unsqueeze(-1), dim=-1)
 
-        with torch.no_grad():
-            next_high_qs = self.get_high_qs_target(ag_obs, en_obs, self.n_ag, self.n_en)
-            next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
-            next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
-            high_q_target = self.gamma * next_argmax_high_q.squeeze().sum(-1) + r_h[:, 0] * (
+            with torch.no_grad():
+                next_high_qs = self.get_high_qs_target(ag_obs, en_obs, self.n_ag, self.n_en)
+                next_high_qs = next_high_qs.squeeze().reshape(-1, self.n_ag, self.n_en)
+                next_argmax_high_q, next_high_action = next_high_qs.max(dim=-1)
+                high_q_target = self.gamma * next_argmax_high_q.squeeze().sum(-1) + r_h[:, 0] * (
                         1 - t[:, 0])
 
-        loss_c_h = self.loss_ftn(high_qs_taken.squeeze().sum(-1), high_q_target.squeeze())
+            loss_c_h = self.loss_ftn(high_qs_taken.squeeze().sum(-1), high_q_target.squeeze())
 
-        self.critic_h_optimizer.zero_grad()
-        loss_c_h.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
-        self.critic_h_optimizer.step()
+            self.critic_h_optimizer.zero_grad()
+            loss_c_h.backward()
+            torch.nn.utils.clip_grad_norm_(self.critic_h.parameters(), 0.5)
+            self.critic_h_optimizer.step()
 
-        # high actor: Note: WIP
-        with torch.no_grad():
-            high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
+            # high actor: Note: WIP
+            with torch.no_grad():
+                high_qs = self.get_high_qs(ag_obs, en_obs, self.n_ag, self.n_en)
 
-        _, _, logits = self.get_high_action(ag_obs, en_obs, self.n_ag, self.n_en, return_logit_probs=True,
-                                            h_action=a_h)
+            loss_a_h = []
+            for i, transition in enumerate(h_transition):
+                if transition:
+                    _, _, logits, coeff = self.get_high_action(ag_obs, en_obs, self.n_ag, self.n_en,
+                                                               return_logit_probs=True,
+                                                               h_action=a_h)
 
-        value = (high_qs.reshape(logits.shape[0], logits.shape[1], -1) * logits).sum(-1).detach()
-        taken_q = high_qs.reshape(-1, self.n_ag, self.n_en).gather(-1, a_h.unsqueeze(-1)).detach()
-        pol_target = taken_q.squeeze() - value
+                    value = (high_qs.reshape(logits.shape[0], logits.shape[1], -1) * logits).sum(-1).detach()
+                    taken_q = high_qs.reshape(-1, self.n_ag, self.n_en).gather(-1, a_h.unsqueeze(-1)).detach()
+                    pol_target = taken_q.squeeze() - value
 
-        logits_taken = logits.gather(-1, a_h.unsqueeze(-1)).squeeze()
-        loss_a_h = (-pol_target * logits_taken).mean()
+                    logits_taken = logits.gather(-1, a_h.unsqueeze(-1)).squeeze()
+                    loss_a_h.append((-pol_target * logits_taken).mean())
 
-        # for i in range(self.batch_size):
-        #     curr_sol = self.actor_h.apply(high_qs[i].reshape(-1)).reshape(self.n_ag, -1)
-        #     logit_taken = curr_sol.gather(-1, a_h[i].unsqueeze(-1))
+            if len(loss_a_h) > 0:
+                loss_a_h = torch.stack(loss_a_h).mean()
+                self.actor_h_optimizer.zero_grad()
+                loss_a_h.backward()
+                torch.nn.utils.clip_grad_norm_(self.coeff_layer.parameters(), 0.5)
+                self.actor_h_optimizer.step()
+            else:
+                loss_a_h = torch.Tensor([0])
 
-        self.actor_h_optimizer.zero_grad()
-        loss_a_h.backward()
-        torch.nn.utils.clip_grad_norm_(self.coeff_layer.parameters(), 0.5)
-        self.actor_h_optimizer.step()
+        else:
+            loss_c_h = torch.Tensor([0])
+            loss_a_h = torch.Tensor([0])
 
         # low critic
-        low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
+        low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h], a_l], dim=-1).detach()
 
-        if self.batch_norm:
-            low_critic_in = self.critic_batch(low_critic_in.transpose(1, 2)).transpose(1, 2)
-
-        low_qs = self.critic_l(low_critic_in)
-        low_qs_taken = low_qs.gather(-1, a_l.unsqueeze(-1))
+        low_qs = self.critic_l(low_critic_in).squeeze()
 
         with torch.no_grad():
-            # inp = torch.cat([n_ag_obs, n_en_obs[torch.arange(self.batch_size)[:, None], next_high_action]], dim=-1)
-            inp = torch.cat([n_ag_obs, n_en_obs], dim=-1)  #
-            # target_probs = [self.actor_l_target[i](inp[:, i]) for i in range(self.n_ag)]
-            # next_action = next_probs
-            # next_action = torch.stack(next_actions, dim=1)
+            next_input = torch.cat([n_ag_obs, n_en_obs], dim=-1)  #
+            next_low_q = self.critic_l_target(torch.cat([next_input, self.actor_l_target(next_input)], dim=-1))
+            low_q_target = next_low_q.squeeze() * self.gamma * (1 - t) + r_l
 
-            # next_action = self.actor_l_target(inp)
-            # next_low_critic_in = torch.cat([inp, next_action], dim=-1)
-            if self.batch_norm:
-                inp = self.critic_batch(inp.transpose(1, 2)).transpose(1, 2)
-
-            next_low_q = self.critic_l_target(inp)
-            next_target_q = next_low_q.max(-1)[0]
-            low_q_target = next_target_q * self.gamma * (1 - t) + r_l
-
-        loss_c_l = self.loss_ftn(low_qs_taken.squeeze(), low_q_target)
+        loss_c_l = self.loss_ftn(low_qs, low_q_target)
 
         self.critic_l_optimizer.zero_grad()
         loss_c_l.backward()
@@ -319,23 +291,21 @@ class DDPGLPAgent(LPAgent):
         self.critic_l_optimizer.step()
 
         # low actor
-        # actor_inp = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
-        # loss_a_l_total = 0
-        # for i in range(self.n_ag):
-        #     actor_in = actor_inp[:, i]
-        #     loss_a_l = -self.critic_l(torch.cat([actor_in, self.actor_l[i](actor_in)], dim=-1))
-        #     loss_a_l = loss_a_l.mean()
-        #     self.actor_optimizer[i].zero_grad()
-        #     loss_a_l.backward()
-        #     torch.nn.utils.clip_grad_norm_(self.actor_l[i].parameters(), 1)
-        #     self.actor_optimizer[i].step()
-        #     loss_a_l_total += loss_a_l.item()
+        actor_inp = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h]], dim=-1)
+        loss_a_l = -self.critic_l(torch.cat([actor_inp, self.actor_l(actor_inp)], dim=-1))
+
+        loss_a_l = loss_a_l.mean()
+        self.actor_optimizer.zero_grad()
+        loss_a_l.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor_l.parameters(), 1)
+        self.actor_optimizer.step()
+
         ret_dict = {
             'loss_c_h': loss_c_h.item(),
             'loss_c_l': loss_c_l.item(),
             'loss_a_h': loss_a_h.item(),
-            # 'loss_a_l': loss_a_l_total,
-            'high_weight': self.high_weight
+            'loss_a_l': loss_a_l.item(),
+            # 'high_weight': self.high_weight
         }
 
         # gradient on high / low action
@@ -347,4 +317,4 @@ class DDPGLPAgent(LPAgent):
     def update_target(self):
         self.update_target_network(self.critic_l_target.parameters(), self.critic_l.parameters(), tau=self.target_tau)
         self.update_target_network(self.critic_h_target.parameters(), self.critic_h.parameters(), tau=self.target_tau)
-        # self.update_target_network(self.actor_l_target.parameters(), self.actor_l.parameters(), tau=self.target_tau)
+        self.update_target_network(self.actor_l_target.parameters(), self.actor_l.parameters(), tau=self.target_tau)

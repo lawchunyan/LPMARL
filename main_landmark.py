@@ -1,6 +1,7 @@
 import torch
 import wandb
 import os
+import numpy as np
 
 from datetime import date
 # from src.agents.LPagent_hier_maddpg import DDPGLPAgent
@@ -36,7 +37,7 @@ agent_config = {
     "lr": 0.01,
     'memory_type': 'sample',
     'target_tau': 0.001,
-    'target_update_interval': 100,
+    'target_update_interval': 50,
     'coeff': coeff,
     "sc2": False
 }
@@ -65,7 +66,7 @@ if TRAIN and use_wandb:
         os.makedirs(dirName)
 
     exp_conf = {'directory': curr_dir}
-    wandb.init(project='optmarl', name=exp_name, config=dict(agent_config, **exp_conf))
+    wandb.init(project='LPMARL_exp2', name=exp_name, config=dict(agent_config, **exp_conf))
     wandb.watch(agent)
 
 # agent.load_state_dict(torch.load('result/20210601_navigation_LP_2/4000.th'))
@@ -90,7 +91,7 @@ for e in range(num_episodes):
                                                            get_high_action=get_high_action)
 
         # std_action += action.std(axis=0)
-        next_state, reward, terminated, _ = env.step(change_to_one_hot(action))
+        next_state, reward, terminated, _ = env.step(action)
         # next_state, reward, terminated, _ = env.step(action)
         low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
@@ -106,20 +107,32 @@ for e in range(num_episodes):
         if all(terminated):
             break
 
-        if agent.can_fit() and TRAIN and e > 100 and ep_len % 5 == 0:
+        if agent.can_fit() and TRAIN:
             # for _ in range(4):
             n_fit += 1
             ret_dict = agent.fit(n_fit)
             wandb.log(ret_dict)
+            # print(list(ret_dict.values()))
 
     if use_wandb:
+        num_hit = 0
+        for l in env.world.landmarks:
+            landmark_pos = l.state.p_pos
+            min_dist_to_l = 100
+            for a in env.world.agents:
+                ag_pos = a.state.p_pos
+                min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
+
+            if min_dist_to_l < 0.5:
+                num_hit += 1
         wandb.log({'reward': episode_reward,
                    'epsilon': agent.epsilon,
                    'EP': e,
-                   'num_hit': env.world.num_hit,
+                   'num_hit': num_hit,
                    'std_action': std_action / ep_len,
                    'ep_len': ep_len,
-                   'reward_l': episode_reward_l})
+                   'reward_l': episode_reward_l,
+                   'coeff': coeff})
 
     if e % 1000 == 0 and e > 5000:
         agent.save(curr_dir, e)

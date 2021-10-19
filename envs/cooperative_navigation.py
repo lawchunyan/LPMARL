@@ -82,41 +82,24 @@ class Scenario(BaseScenario):
         return True if dist < dist_min else False
 
     def reward_sparse(self, agent, world):
-        # agents only receive global reward
-        # rew = 0
-        # for l in world.landmarks:
-        #     dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-        #     rew -= min(dists)
-        #
-        # if min([np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))) for l in world.landmarks]) < 0.5:
-        #     world.num_hit += 1
-        #
-        # if agent.collide:
-        #     for a in world.agents:
-        #         if self.is_collision(a, agent):
-        #             rew -= 1
-        # return rew
         reward = 0
+        #
+        # n_touch = 0
+        # for l in world.landmarks:
+        #     landmark_pos = l.state.p_pos
+        #     min_dist_to_l = 100
+        #     for a in world.agents:
+        #         ag_pos = a.state.p_pos
+        #         min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
+        #
+        #     if min_dist_to_l < 0.5:
+        #         n_touch += 1
+        #         world.num_hit += 1
+        #
+        # world.curr_hit = n_touch
+        # if world.curr_hit == len(world.landmarks):
+        #     reward += 50
 
-        n_touch = 0
-        for l in world.landmarks:
-            landmark_pos = l.state.p_pos
-            min_dist_to_l = 100
-            for a in world.agents:
-                ag_pos = a.state.p_pos
-                min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
-
-            if min_dist_to_l < 0.5:
-                n_touch += 1
-                world.num_hit += 1
-
-        world.curr_hit = n_touch
-        if world.curr_hit == len(world.landmarks):
-            reward += 50
-
-        # for a in world.agents:
-        #     if a != agent and self.is_collision(a, agent):
-        #         reward -= 10
 
         return reward
 
@@ -218,7 +201,7 @@ def intrinsic_reward(env: MultiAgentEnv, agent_i, landmark_i):
     if squared_distance < 0.5 ** 2:
         reward += 10
     else:
-        reward -= 10
+        reward -= 1
 
     for a in env.world.agents:
         if a != env.world.agents[agent_i] and np.square(a.state.p_pos - agent_pos).sum() < 1:
