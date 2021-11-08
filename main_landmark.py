@@ -9,6 +9,7 @@ from src.agents.LPagent_hier_discrete import DDPGLPAgent
 # from src.utils.make_graph import make_graph
 from src.utils.action_utils import change_to_one_hot
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
+from envs.normalize_rwd import reward_from_state
 
 TRAIN = True
 use_wandb = True
@@ -91,17 +92,20 @@ for e in range(num_episodes):
                                                            get_high_action=get_high_action)
 
         # std_action += action.std(axis=0)
-        next_state, reward, terminated, _ = env.step(action)
+        next_state, _, terminated, _ = env.step(action)
         # next_state, reward, terminated, _ = env.step(action)
-        low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
+        rew_dense, n_occupied = reward_from_state(next_state)
+        global_rwd = 10 if n_occupied == n_ag else 0
 
-        episode_reward += sum(reward)
+        # low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
+
+        episode_reward_l += sum(rew_dense)
+        episode_reward += global_rwd
         # reward = [sum(reward) / n_ag for r in reward]
-        episode_reward_l += sum(low_reward)
 
-        agent.push(state, landmark_state, high_action, low_action, low_reward, next_state, landmark_state, terminated,
+        agent.push(state, landmark_state, high_action, low_action, rew_dense, next_state, landmark_state, terminated,
                    0,
-                   reward, get_high_action)
+                   global_rwd, get_high_action)
         state = next_state
 
         if all(terminated):
