@@ -163,7 +163,17 @@ class Scenario(BaseScenario):
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
 
     def done(self, agent, world):
-        if world.t >= 50 * len(world.agents) or world.curr_hit == len(world.landmarks):
+        touched = False
+        min_dist_to_l = 100
+        for l in world.landmarks:
+            landmark_pos = l.state.p_pos
+            ag_pos = agent.state.p_pos
+            min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
+
+        if min_dist_to_l < 0.1:
+            touched = True
+
+        if world.t >= 50 * len(world.agents) or touched:
             return True
         else:
             return False
