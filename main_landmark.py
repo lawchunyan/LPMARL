@@ -12,7 +12,7 @@ from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_
 from envs.normalize_rwd import reward_from_state
 
 TRAIN = True
-use_wandb = False
+use_wandb = True
 
 n_ag = 1
 num_episodes = 50000
@@ -70,7 +70,7 @@ if TRAIN and use_wandb:
     wandb.init(project='LPMARL_exp2', name=exp_name, config=dict(agent_config, **exp_conf))
     wandb.watch(agent)
 
-# agent.load_state_dict(torch.load('result/20210601_navigation_LP_2/4000.th'))
+# agent.load_state_dict(torch.load('result/20211110_navigation_ddpgcpu/7000.th'))
 
 for e in range(num_episodes):
     episode_reward = 0

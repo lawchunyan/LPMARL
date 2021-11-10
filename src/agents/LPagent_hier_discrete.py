@@ -115,6 +115,7 @@ class DDPGLPAgent(LPAgent):
 
         self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
         # chosen_l_action = torch.distributions.categorical.Categorical(low_policy).sample()
+        low_action = low_action + self.epsilon * (torch.rand_like(low_action) - 0.5)
         return low_action
 
     def get_coeff(self, agent_obs, enemy_obs, num_ag, num_en):

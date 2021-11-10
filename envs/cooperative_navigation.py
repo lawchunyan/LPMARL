@@ -50,7 +50,8 @@ class Scenario(BaseScenario):
             agent.state.c = np.zeros(world.dim_c)
 
         for i, landmark in enumerate(world.landmarks):
-            landmark.state.p_pos = np.array([math.cos(theta * i) * 2, math.sin(theta * i) * 2])
+            # landmark.state.p_pos = np.array([math.cos(theta * i) * 2, math.sin(theta * i) * 2])
+            landmark.state.p_pos = np.random.uniform(-0.5, 0.5, 2)
             landmark.state.p_vel = np.zeros(world.dim_p)
 
         world.num_hit = 0
