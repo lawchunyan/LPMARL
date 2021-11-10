@@ -97,7 +97,7 @@ class DDPGLPAgent(LPAgent):
     def get_low_action(self, agent_obs, high_feat, avail_action_mask=None, explore=True):
         low_actor_input = np.concatenate([agent_obs, high_feat], axis=-1)
         low_actor_input = torch.Tensor(low_actor_input).to(self.device)
-        low_policy = self.actor_l(low_actor_input)
+        low_action = self.actor_l(low_actor_input)
 
         # if explore:
         #     random_qs = torch.rand_like(low_qs)
@@ -113,9 +113,9 @@ class DDPGLPAgent(LPAgent):
         # else:
         #     out_action = low_qs.argmax(-1)
 
-        # self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
+        self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
         # chosen_l_action = torch.distributions.categorical.Categorical(low_policy).sample()
-        return low_policy
+        return low_action
 
     def get_coeff(self, agent_obs, enemy_obs, num_ag, num_en):
         if type(agent_obs) == list:
@@ -209,15 +209,15 @@ class DDPGLPAgent(LPAgent):
             for s, l in zip(sample, lst):
                 l.append(s)
 
-        ag_obs = torch.Tensor(ag_obs).to(self.device)
-        en_obs = torch.Tensor(en_obs).to(self.device)
+        ag_obs = torch.Tensor(np.array(ag_obs)).to(self.device)
+        en_obs = torch.Tensor(np.array(en_obs)).to(self.device)
         a_h = torch.tensor(a_h, dtype=torch.int64).to(self.device)
         a_l = torch.stack(a_l).to(self.device)
 
-        n_ag_obs = torch.Tensor(n_ag_obs).to(self.device)
-        n_en_obs = torch.Tensor(n_en_obs).to(self.device)
+        n_ag_obs = torch.Tensor(np.array(n_ag_obs)).to(self.device)
+        n_en_obs = torch.Tensor(np.array(n_en_obs)).to(self.device)
         r_h = torch.Tensor(high_r).to(self.device)
-        r_l = torch.Tensor(r).to(self.device)
+        r_l = torch.Tensor(np.array(r)).to(self.device)
 
         t = torch.Tensor(t).to(self.device)
         h_transition = torch.BoolTensor(h_transition).to(self.device)
@@ -276,12 +276,12 @@ class DDPGLPAgent(LPAgent):
         # low critic
         low_critic_in = torch.cat([ag_obs, en_obs[torch.arange(self.batch_size)[:, None], a_h], a_l], dim=-1).detach()
 
-        low_qs = self.critic_l(low_critic_in).squeeze()
+        low_qs = self.critic_l(low_critic_in).squeeze(-1)
 
         with torch.no_grad():
             next_input = torch.cat([n_ag_obs, n_en_obs], dim=-1)  #
             next_low_q = self.critic_l_target(torch.cat([next_input, self.actor_l_target(next_input)], dim=-1))
-            low_q_target = next_low_q.squeeze() * self.gamma * (1 - t) + r_l
+            low_q_target = next_low_q.squeeze(-1) * self.gamma * (1 - t) + r_l # squeeze on feature dim
 
         loss_c_l = self.loss_ftn(low_qs, low_q_target)
 

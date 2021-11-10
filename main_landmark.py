@@ -12,9 +12,9 @@ from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_
 from envs.normalize_rwd import reward_from_state
 
 TRAIN = True
-use_wandb = True
+use_wandb = False
 
-n_ag = 5
+n_ag = 1
 num_episodes = 50000
 coeff = 1.2
 max_t = 50
@@ -84,7 +84,8 @@ for e in range(num_episodes):
     while True:
         ep_len += 1
         if ep_len == 1:
-            get_high_action = True
+            get_high_action = False
+            agent.high_action = [0]
         else:
             get_high_action = False
 
@@ -95,7 +96,7 @@ for e in range(num_episodes):
         next_state, _, terminated, _ = env.step(action)
         # next_state, reward, terminated, _ = env.step(action)
         rew_dense, n_occupied = reward_from_state(next_state)
-        global_rwd = 10 if n_occupied == n_ag else 0
+        global_rwd = 0 if n_occupied == n_ag else 0
 
         # low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 

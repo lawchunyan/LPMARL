@@ -14,12 +14,12 @@ def reward_from_state(n_state):
             sub_obs = obs_landmark[i*2: i*2+2]
             dist = np.sqrt(sub_obs[0]**2 + sub_obs[1]**2)
 
-            # if dist < 0.4: agent_reward += 0.3
-            # if dist < 0.2: agent_reward += 0.5
+            if dist < 0.4: agent_reward += 0.3
+            if dist < 0.2: agent_reward += 0.5
             if dist < 0.1:
                 agent_reward += 10
                 n_occupied[i] = True
-                break
+                # break
 
         # otherA = np.array(state[10:12])
         # otherB = np.array(state[12:14])
