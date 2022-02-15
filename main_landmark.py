@@ -7,14 +7,14 @@ from datetime import date
 # from src.agents.LPagent_hier_maddpg import DDPGLPAgent
 from src.agents.LPagent_hier_discrete import DDPGLPAgent
 # from src.utils.make_graph import make_graph
-from src.utils.action_utils import change_to_one_hot
 from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_reward
 from envs.normalize_rwd import reward_from_state
 
 TRAIN = True
 use_wandb = True
 
-n_ag = 1
+n_ag = 2
+n_landmark = 2
 num_episodes = 50000
 coeff = 1.2
 max_t = 50
@@ -84,8 +84,7 @@ for e in range(num_episodes):
     while True:
         ep_len += 1
         if ep_len == 1:
-            get_high_action = False
-            agent.high_action = [0]
+            get_high_action = True
         else:
             get_high_action = False
 

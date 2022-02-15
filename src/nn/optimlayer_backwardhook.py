@@ -80,7 +80,7 @@ class MatchginSolver():
         out = self.variables[0].value
         return out
 
-solver = MatchginSolver(5, 5, 1.1, device)
+solver = MatchginSolver(2, 2, 1.1, device)
 
 # class EdgeMatching(nn.Module):
 #     def __init__(self):
