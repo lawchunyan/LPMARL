@@ -129,7 +129,7 @@ for e in range(num_episodes):
                 ag_pos = a.state.p_pos
                 min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
 
-            if min_dist_to_l < 0.5:
+            if min_dist_to_l < 0.2:
                 num_hit += 1
         wandb.log({'reward': episode_reward,
                    'epsilon': agent.epsilon,

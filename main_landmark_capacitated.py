@@ -9,20 +9,24 @@ from src.agents.LPagent_hier_discrete import DDPGLPAgent
 # from src.utils.make_graph import make_graph
 from src.utils.action_utils import change_to_one_hot
 from envs.cooperative_navigation_constraint import make_env, get_landmark_state
-from envs.normalize_rwd import reward_from_state
+from envs.normalize_rwd import reward_from_state_capacity
 
 TRAIN = True
 use_wandb = True
 
-n_ag = 1
+n_ag = 5
+n_landmark = 3
+capacity = [1, 1, 3]
 num_episodes = 50000
 coeff = 1.2
 max_t = 50
 
+assert sum(capacity) == n_ag
+
 agent_config = {
     "state_dim": 4 + 2 * (2 * n_ag - 1),
     "n_ag": n_ag,
-    "n_en": n_ag,
+    "n_en": n_landmark,
     "action_dim": 5,
     "en_feat_dim": 2,
     'state_shape': (n_ag),
@@ -67,7 +71,7 @@ if TRAIN and use_wandb:
         os.makedirs(dirName)
 
     exp_conf = {'directory': curr_dir}
-    wandb.init(project='LPMARL_exp2', name=exp_name, config=dict(agent_config, **exp_conf))
+    wandb.init(project='LPMARL_exp2', name=exp_name, config=dict(agent_config, **exp_conf), entity='curie')
     wandb.watch(agent)
 
 # agent.load_state_dict(torch.load('result/20211110_navigation_ddpgcpu/7000.th'))
@@ -95,7 +99,7 @@ for e in range(num_episodes):
         # std_action += action.std(axis=0)
         next_state, _, terminated, _ = env.step(action)
         # next_state, reward, terminated, _ = env.step(action)
-        rew_dense, n_occupied = reward_from_state(next_state)
+        rew_dense, n_occupied = reward_from_state_capacity(next_state, capacity)
         global_rwd = 0 if n_occupied == n_ag else 0
 
         # low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
