@@ -12,7 +12,7 @@ from envs.cooperative_navigation_constraint import make_env, get_landmark_state
 from envs.normalize_rwd import reward_from_state_capacity
 
 TRAIN = True
-use_wandb = True
+use_wandb = False
 
 n_ag = 5
 n_landmark = 3
@@ -99,7 +99,9 @@ for e in range(num_episodes):
         next_state, _, terminated, _ = env.step(action)
         # next_state, reward, terminated, _ = env.step(action)
         rew_dense, n_occupied = reward_from_state_capacity(next_state, capacity)
-        global_rwd = 0 if n_occupied == n_ag else 0
+
+        meet_capacity = all([n <= i for n, i in zip(n_occupied, capacity)])
+        global_rwd = 0 if sum(n_occupied) == n_ag and meet_capacity else 0
 
         # low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
@@ -112,7 +114,7 @@ for e in range(num_episodes):
                    global_rwd, get_high_action)
         state = next_state
 
-        if all(terminated):
+        if all(terminated) or sum(n_occupied) == n_ag:
             break
 
         if agent.can_fit() and TRAIN:

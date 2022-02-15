@@ -3,7 +3,8 @@ import numpy as np
 
 def reward_from_state_capacity(n_state, capacity):
     rew = []
-    n_landmark = len(n_state)
+    # n_landmark = len(n_state)
+    n_landmark = 3
     n_occupied = [0 for _ in range(n_landmark)]
 
     for state in n_state: # iterate on agent
