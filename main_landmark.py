@@ -11,7 +11,7 @@ from envs.cooperative_navigation import make_env, get_landmark_state, intrinsic_
 from envs.normalize_rwd import reward_from_state
 
 TRAIN = True
-use_wandb = True
+use_wandb = False
 
 n_ag = 2
 n_landmark = 2
@@ -105,7 +105,7 @@ for e in range(num_episodes):
 
         agent.push(state, landmark_state, high_action, low_action, rew_dense, next_state, landmark_state, terminated,
                    0,
-                   global_rwd, get_high_action)
+                   [global_rwd for _ in range(n_ag)], get_high_action)
         state = next_state
 
         if all(terminated):
@@ -115,8 +115,10 @@ for e in range(num_episodes):
             # for _ in range(4):
             n_fit += 1
             ret_dict = agent.fit(n_fit)
-            wandb.log(ret_dict)
-            # print(list(ret_dict.values()))
+
+            if use_wandb:
+                wandb.log(ret_dict)
+                # print(list(ret_dict.values()))
 
     if use_wandb:
         num_hit = 0
