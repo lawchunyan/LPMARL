@@ -88,8 +88,7 @@ for e in range(num_episodes):
     while True:
         ep_len += 1
         if ep_len == 1:
-            get_high_action = False
-            agent.high_action = [0]
+            get_high_action = True
         else:
             get_high_action = False
 
@@ -120,7 +119,8 @@ for e in range(num_episodes):
             # for _ in range(4):
             n_fit += 1
             ret_dict = agent.fit(n_fit)
-            wandb.log(ret_dict)
+            if use_wandb:
+                wandb.log(ret_dict)
             # print(list(ret_dict.values()))
 
     if use_wandb:
