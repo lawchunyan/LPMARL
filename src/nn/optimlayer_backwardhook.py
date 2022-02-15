@@ -66,7 +66,8 @@ class MatchginSolver():
         temp = np.eye(m)
         C_value = np.concatenate([temp for _ in range(n)], axis=-1)
         C_val = C_value
-        d_val = np.ones(m) * coeff
+        d_val = np.array([1, 1, 3])
+        # d_val = np.ones(m) * coeff
         default_parameters = [A_val, b_val, C_val, d_val]
         self.default_parameters = default_parameters
 
@@ -80,7 +81,7 @@ class MatchginSolver():
         out = self.variables[0].value
         return out
 
-solver = MatchginSolver(2, 2, 1.1, device)
+solver = MatchginSolver(5, 3, 1.1, device)
 
 # class EdgeMatching(nn.Module):
 #     def __init__(self):
