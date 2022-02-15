@@ -67,7 +67,7 @@ if TRAIN and use_wandb:
         os.makedirs(dirName)
 
     exp_conf = {'directory': curr_dir}
-    wandb.init(project='LPMARL_exp2', name=exp_name, config=dict(agent_config, **exp_conf))
+    wandb.init(project='LPMARL_exp2', name=exp_name, config=dict(agent_config, **exp_conf), entity='curie')
     wandb.watch(agent)
 
 # agent.load_state_dict(torch.load('result/20211110_navigation_ddpgcpu/7000.th'))
@@ -95,7 +95,7 @@ for e in range(num_episodes):
         next_state, _, terminated, _ = env.step(action)
         # next_state, reward, terminated, _ = env.step(action)
         rew_dense, n_occupied = reward_from_state(next_state)
-        global_rwd = 0 if n_occupied == n_ag else 0
+        global_rwd = 10 if n_occupied == n_ag else 0
 
         # low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
