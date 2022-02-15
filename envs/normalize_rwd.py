@@ -17,7 +17,7 @@ def reward_from_state_capacity(n_state, capacity):
 
             if dist < 0.4: agent_reward += 0.3
             if dist < 0.2:
-                agent_reward += 10
+                agent_reward += 1
                 n_occupied[i] += 1
                 break
 
@@ -42,7 +42,7 @@ def reward_from_state(n_state):
 
             if dist < 0.4: agent_reward += 0.3
             if dist < 0.2:
-                agent_reward += 10
+                agent_reward += 1
                 n_occupied[i] = True
                 # break
 

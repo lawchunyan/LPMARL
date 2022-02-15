@@ -95,17 +95,17 @@ for e in range(num_episodes):
         next_state, _, terminated, _ = env.step(action)
         # next_state, reward, terminated, _ = env.step(action)
         rew_dense, n_occupied = reward_from_state(next_state)
-        global_rwd = 10 if n_occupied == n_ag else 0
+        h_rwd = 10 if n_occupied == n_ag else 0
 
         # low_reward = [intrinsic_reward(env, i, a) for i, a in enumerate(high_action)]
 
         episode_reward_l += sum(rew_dense)
-        episode_reward += global_rwd
+        episode_reward += h_rwd
         # reward = [sum(reward) / n_ag for r in reward]
 
         agent.push(state, landmark_state, high_action, low_action, rew_dense, next_state, landmark_state, terminated,
                    0,
-                   [global_rwd for _ in range(n_ag)], get_high_action)
+                   [h_rwd for _ in range(n_ag)], get_high_action)
         state = next_state
 
         if all(terminated) or n_occupied == n_ag:
