@@ -16,15 +16,14 @@ def reward_from_state_capacity(n_state, capacity):
             dist = np.sqrt(sub_obs[0] ** 2 + sub_obs[1] ** 2)
 
             if dist < 0.4: agent_reward += 0.3
-            if dist < 0.2: agent_reward += 0.5
-            if dist < 0.1:
+            if dist < 0.2:
                 agent_reward += 10
                 n_occupied[i] += 1
                 break
 
         rew.append(agent_reward)
 
-    return np.array(rew), sum(n_occupied)
+    return np.array(rew), n_occupied
 
 
 def reward_from_state(n_state):

@@ -67,7 +67,7 @@ class Scenario(BaseScenario):
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
             min_dists += min(dists)
             rew -= min(dists)
-            if min(dists) < 0.1:
+            if min(dists) < 0.2:
                 occupied_landmarks += 1
         if agent.collide:
             for a in world.agents:
@@ -170,7 +170,7 @@ class Scenario(BaseScenario):
             ag_pos = agent.state.p_pos
             min_dist_to_l = min(min_dist_to_l, np.sqrt(np.sum(np.square(landmark_pos - ag_pos))))
 
-        if min_dist_to_l < 0.1:
+        if min_dist_to_l < 0.2:
             touched = True
 
         if world.t >= 50 * len(world.agents) or touched:
